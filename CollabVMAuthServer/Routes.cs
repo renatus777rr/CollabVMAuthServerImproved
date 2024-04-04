@@ -70,6 +70,11 @@ public static class Routes
             }, Utilities.JsonSerializerOptions);
         }
         // Verify the account
+        await Program.Database.SetUserVerified(payload.username, true);
+        return Results.Json(new RegisterResponse
+        {
+            success = true
+        }, Utilities.JsonSerializerOptions);
     }
 
     private static async Task<IResult> HandleRegister(HttpContext context)

@@ -100,4 +100,15 @@ public class Database
         cmd.Parameters.AddWithValue("@email_verification_code", verificationcode);
         await cmd.ExecuteNonQueryAsync();
     }
+
+    public async Task SetUserVerified(string username, bool verified)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "UPDATE users SET email_verified = @verified WHERE username = @username";
+        cmd.Parameters.AddWithValue("@verified", verified);
+        cmd.Parameters.AddWithValue("@username", username);
+        await cmd.ExecuteNonQueryAsync();
+    }
 }
