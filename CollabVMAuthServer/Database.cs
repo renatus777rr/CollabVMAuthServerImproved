@@ -30,6 +30,7 @@ public class Database
                               username VARCHAR(20) NOT NULL UNIQUE KEY,
                               password TEXT NOT NULL,
                               email TEXT NOT NULL UNIQUE KEY,
+                              date_of_birth DATE NOT NULL,
                               email_verified BOOLEAN NOT NULL DEFAULT 0,
                               email_verification_code CHAR(8) DEFAULT NULL,
                               cvm_rank INT UNSIGNED NOT NULL DEFAULT 1,
@@ -77,6 +78,7 @@ public class Database
             Username = reader.GetString("username"),
             Password = reader.GetString("password"),
             Email = reader.GetString("email"),
+            DateOfBirth = reader.GetDateOnly("date_of_birth"),
             EmailVerified = reader.GetBoolean("email_verified"),
             EmailVerificationCode = reader.GetString("email_verification_code"),
             Rank = (Rank)reader.GetUInt32("cvm_rank"),
@@ -85,7 +87,7 @@ public class Database
         };
     }
 
-    public async Task RegisterAccount(string username, string email, string password, bool verified, IPAddress ip,
+    public async Task RegisterAccount(string username, string email, DateOnly dateOfBirth, string password, bool verified, IPAddress ip,
         string? verificationcode = null)
     {
         await using var db = new MySqlConnection(connectionString);
@@ -93,13 +95,14 @@ public class Database
         await using var cmd = db.CreateCommand();
         cmd.CommandText = """
                           INSERT INTO users
-                            (username, password, email, email_verified, email_verification_code, registration_ip)
+                            (username, password, email, date_of_birth, email_verified, email_verification_code, registration_ip)
                             VALUES
-                            (@username, @password, @email, @email_verified, @email_verification_code, @registration_ip)
+                            (@username, @password, @email @date_of_birth, @email_verified, @email_verification_code, @registration_ip)
                           """;
         cmd.Parameters.AddWithValue("@username", username);
         cmd.Parameters.AddWithValue("@password", Argon2.Hash(password));
         cmd.Parameters.AddWithValue("@email", email);
+        cmd.Parameters.AddWithValue("@date_of_birth", dateOfBirth);
         cmd.Parameters.AddWithValue("@email_verified", verified);
         cmd.Parameters.AddWithValue("@email_verification_code", verificationcode);
         cmd.Parameters.AddWithValue("@registration_ip", ip.GetAddressBytes());

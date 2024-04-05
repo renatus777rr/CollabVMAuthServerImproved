@@ -8,6 +8,7 @@ public class User
     public string Username { get; set; }
     public string Password { get; set; }
     public string Email { get; set; }
+    public DateOnly DateOfBirth { get; set; }
     public bool EmailVerified { get; set; }
     public string EmailVerificationCode { get; set; }
     public Rank Rank { get; set; }

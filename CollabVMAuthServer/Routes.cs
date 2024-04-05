@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Net;
+using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Computernewb.CollabVMAuthServer.HTTP.Payloads;
@@ -524,7 +525,7 @@ public static class Routes
             }, Utilities.JsonSerializerOptions);
         }
         var payload = await context.Request.ReadFromJsonAsync<RegisterPayload>();
-        if (payload == null || string.IsNullOrWhiteSpace(payload.username) || string.IsNullOrWhiteSpace(payload.password) || string.IsNullOrWhiteSpace(payload.email))
+        if (payload == null || string.IsNullOrWhiteSpace(payload.username) || string.IsNullOrWhiteSpace(payload.password) || string.IsNullOrWhiteSpace(payload.email) || string.IsNullOrWhiteSpace(payload.dateOfBirth))
         {
             context.Response.StatusCode = 400;
             return Results.Json(new RegisterResponse
@@ -628,11 +629,31 @@ public static class Routes
                 error = "That password is commonly used and is not allowed."
             }, Utilities.JsonSerializerOptions);
         }
+        // Validate date of birth
+        if (!DateOnly.TryParseExact(payload.dateOfBirth, "yyyy-MM-dd", out var dob))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new RegisterResponse
+            {
+                success = false,
+                error = "Invalid date of birth"
+            }, Utilities.JsonSerializerOptions);
+        }
+
+        if (dob.AddYears(13) > DateOnly.FromDateTime(DateTime.Now))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new RegisterResponse
+            {
+                success = false,
+                error = "You must be at least 13 years old to register."
+            }, Utilities.JsonSerializerOptions);
+        }
         // Create the account
         if (Program.Config.Registration.EmailVerificationRequired)
         {
             var code = Program.Random.Next(10000000, 99999999).ToString();
-            await Program.Database.RegisterAccount(payload.username, payload.email, payload.password, false, ip,code);
+            await Program.Database.RegisterAccount(payload.username, payload.email, dob, payload.password, false, ip,code);
             await Program.Mailer.SendVerificationCode(payload.username, payload.email, code);
             return Results.Json(new RegisterResponse
             {
@@ -644,7 +665,7 @@ public static class Routes
         }
         else
         {
-            await Program.Database.RegisterAccount(payload.username, payload.email, payload.password, true, null);
+            await Program.Database.RegisterAccount(payload.username, payload.email, dob, payload.password, true, null);
             var token = Utilities.RandomString(32);
             await Program.Database.CreateSession(user.Username, token, ip);
             return Results.Json(new RegisterResponse
