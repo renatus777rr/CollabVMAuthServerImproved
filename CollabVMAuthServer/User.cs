@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace Computernewb.CollabVMAuthServer;
 
 public class User
@@ -10,6 +12,7 @@ public class User
     public string EmailVerificationCode { get; set; }
     public Rank Rank { get; set; }
     public bool Banned { get; set; }
+    public IPAddress RegistrationIP { get; set; }
 }
 
 public enum Rank : uint

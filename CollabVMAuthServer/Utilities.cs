@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -83,5 +84,40 @@ public static class Utilities
                new Regex("[A-Z]").IsMatch(password) &&
                new Regex("[!@#$%^&*()\\-_=+\\\\|\\[\\];:'\\\",<.>/?`~]").IsMatch(password) &&
                new Regex("[0-9]").IsMatch(password);
+    }
+
+    public static string RandomString(int length)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder str = new StringBuilder();
+        Random rand = new Random();
+        for (int i = 0; i < length; i++)
+        {
+            str.Append(chars[rand.Next(chars.Length)]);
+        }
+        return str.ToString();
+    }
+
+    public static IPAddress? GetIP(HttpContext ctx)
+    {
+        if (Program.Config.HTTP.UseXForwardedFor)
+        {
+            if (!Program.Config.HTTP.TrustedProxies.Contains(ctx.Connection.RemoteIpAddress.ToString()))
+            {
+                Utilities.Log(LogLevel.WARN,
+                    $"An IP address not allowed to proxy connections ({ctx.Connection.RemoteIpAddress.ToString()}) attempted to connect. This means your server port is exposed to the internet.");
+                return null;
+            }
+
+            if (ctx.Request.Headers["X-Forwarded-For"].Count == 0)
+            {
+                Utilities.Log(LogLevel.WARN, $"Missing X-Forwarded-For header in request from {ctx.Connection.RemoteIpAddress.ToString()}. This is probably a misconfiguration of your reverse proxy.");
+                return null;
+            }
+
+            if (!IPAddress.TryParse(ctx.Request.Headers["X-Forwarded-For"][0], out var ip)) return null;
+            return ip;
+        }
+        else return ctx.Connection.RemoteIpAddress;
     }
 }

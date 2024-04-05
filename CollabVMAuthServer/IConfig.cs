@@ -3,10 +3,13 @@ namespace Computernewb.CollabVMAuthServer;
 public class IConfig
 {
     public RegistrationConfig Registration { get; set; }
+    public AccountConfig Accounts { get; set; }
+    public CollabVMConfig CollabVM { get; set; }
     public HTTPConfig HTTP { get; set; }
     public MySQLConfig MySQL { get; set; }
     public SMTPConfig SMTP { get; set; }
     public hCaptchaConfig hCaptcha { get; set; }
+    
 }
 
 public class RegistrationConfig
@@ -15,10 +18,24 @@ public class RegistrationConfig
     public bool EmailDomainWhitelist { get; set; }
     public string[] AllowedEmailDomains { get; set; }
 }
+
+public class AccountConfig
+{
+    public int MaxSessions { get; set; }
+    public int SessionExpiryDays { get; set; }
+}
+
+public class CollabVMConfig
+{
+    // We might want to move this to the database, but for now it's fine here.
+    public string SecretKey { get; set; }
+}
 public class HTTPConfig
 {
     public string Host { get; set; }
     public int Port { get; set; }
+    public bool UseXForwardedFor { get; set; }
+    public string[] TrustedProxies { get; set; }
 }
 public class MySQLConfig
 {

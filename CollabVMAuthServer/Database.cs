@@ -1,3 +1,4 @@
+using System.Net;
 using Isopoh.Cryptography.Argon2;
 using MySqlConnector;
 
@@ -31,8 +32,9 @@ public class Database
                               email TEXT NOT NULL UNIQUE KEY,
                               email_verified BOOLEAN NOT NULL DEFAULT 0,
                               email_verification_code CHAR(8) DEFAULT NULL,
-                              cvm_rank INT UNSIGNED NOT NULL DEFAULT 0,
-                              banned BOOLEAN NOT NULL DEFAULT 0
+                              cvm_rank INT UNSIGNED NOT NULL DEFAULT 1,
+                              banned BOOLEAN NOT NULL DEFAULT 0,
+                              registration_ip VARBINARY(16) NOT NULL
                           );
                           """;
         await cmd.ExecuteNonQueryAsync();
@@ -42,6 +44,7 @@ public class Database
                               username VARCHAR(20) NOT NULL,
                               created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                               last_used TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                              last_ip VARBINARY(16) NOT NULL,
                               FOREIGN KEY (username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
                           )
                           """;
@@ -77,11 +80,12 @@ public class Database
             EmailVerified = reader.GetBoolean("email_verified"),
             EmailVerificationCode = reader.GetString("email_verification_code"),
             Rank = (Rank)reader.GetUInt32("cvm_rank"),
-            Banned = reader.GetBoolean("banned")
+            Banned = reader.GetBoolean("banned"),
+            RegistrationIP = new IPAddress(await reader.GetFieldValueAsync<byte[]>(8))
         };
     }
 
-    public async Task RegisterAccount(string username, string email, string password, bool verified,
+    public async Task RegisterAccount(string username, string email, string password, bool verified, IPAddress ip,
         string? verificationcode = null)
     {
         await using var db = new MySqlConnection(connectionString);
@@ -89,15 +93,16 @@ public class Database
         await using var cmd = db.CreateCommand();
         cmd.CommandText = """
                           INSERT INTO users
-                            (username, password, email, email_verified, email_verification_code)
+                            (username, password, email, email_verified, email_verification_code, registration_ip)
                             VALUES
-                            (@username, @password, @email, @email_verified, @email_verification_code)
+                            (@username, @password, @email, @email_verified, @email_verification_code, @registration_ip)
                           """;
         cmd.Parameters.AddWithValue("@username", username);
         cmd.Parameters.AddWithValue("@password", Argon2.Hash(password));
         cmd.Parameters.AddWithValue("@email", email);
         cmd.Parameters.AddWithValue("@email_verified", verified);
         cmd.Parameters.AddWithValue("@email_verification_code", verificationcode);
+        cmd.Parameters.AddWithValue("@registration_ip", ip.GetAddressBytes());
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -108,6 +113,129 @@ public class Database
         await using var cmd = db.CreateCommand();
         cmd.CommandText = "UPDATE users SET email_verified = @verified WHERE username = @username";
         cmd.Parameters.AddWithValue("@verified", verified);
+        cmd.Parameters.AddWithValue("@username", username);
+        await cmd.ExecuteNonQueryAsync();
+    }
+    
+    public async Task SetVerificationCode(string username, string code)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "UPDATE users SET email_verification_code = @code WHERE username = @username";
+        cmd.Parameters.AddWithValue("@code", code);
+        cmd.Parameters.AddWithValue("@username", username);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task CreateSession(string username, string token, IPAddress ip)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "INSERT INTO sessions (token, username, last_ip) VALUES (@token, @username, @ip)";
+        cmd.Parameters.AddWithValue("@token", token);
+        cmd.Parameters.AddWithValue("@username", username);
+        cmd.Parameters.AddWithValue("@ip", ip.GetAddressBytes());
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<Session[]> GetSessions(string username)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT * FROM sessions WHERE username = @username";
+        cmd.Parameters.AddWithValue("@username", username);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var sessions = new List<Session>();
+        while (await reader.ReadAsync())
+        {
+            sessions.Add(new Session
+            {
+                Token = reader.GetString("token"),
+                Username = reader.GetString("username"),
+                Created = reader.GetDateTime("created"),
+                LastUsed = reader.GetDateTime("last_used"),
+                LastIP = new IPAddress(await reader.GetFieldValueAsync<byte[]>(4))
+            });
+        }
+        return sessions.ToArray();
+    }
+
+    public async Task<Session?> GetSession(string token)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT * FROM sessions WHERE token = @token";
+        cmd.Parameters.AddWithValue("@token", token);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+            return null;
+        return new Session
+        {
+            Token = reader.GetString("token"),
+            Username = reader.GetString("username"),
+            Created = reader.GetDateTime("created"),
+            LastUsed = reader.GetDateTime("last_used"),
+            LastIP = new IPAddress(await reader.GetFieldValueAsync<byte[]>(4))
+        };
+    }
+
+    public async Task RevokeSession(string token)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "DELETE FROM sessions WHERE token = @token";
+        cmd.Parameters.AddWithValue("@token", token);
+        await cmd.ExecuteNonQueryAsync();
+    }
+    
+    public async Task RevokeAllSessions(string username)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "DELETE FROM sessions WHERE username = @username";
+        cmd.Parameters.AddWithValue("@username", username);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task UpdateSessionLastUsed(string token, IPAddress ip)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "UPDATE sessions SET last_used = CURRENT_TIMESTAMP, last_ip = @ip WHERE token = @token";
+        cmd.Parameters.AddWithValue("@token", token);
+        cmd.Parameters.AddWithValue("@ip", ip.GetAddressBytes());
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task UpdateUser(string username, string? newUsername, string? newPassword, string? newEmail)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        var updates = new List<string>();
+        if (newUsername != null)
+        {
+            updates.Add("username = @newUsername");
+            cmd.Parameters.AddWithValue("@newUsername", newUsername);
+        }
+        if (newPassword != null)
+        {
+            updates.Add("password = @newPassword");
+            cmd.Parameters.AddWithValue("@newPassword", Argon2.Hash(newPassword));
+        }
+        if (newEmail != null)
+        {
+            updates.Add("email = @newEmail");
+            cmd.Parameters.AddWithValue("@newEmail", newEmail);
+        }
+        cmd.CommandText = $"UPDATE users SET {string.Join(", ", updates)} WHERE username = @username";
         cmd.Parameters.AddWithValue("@username", username);
         await cmd.ExecuteNonQueryAsync();
     }

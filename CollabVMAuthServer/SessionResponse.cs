@@ -1,11 +1,10 @@
 namespace Computernewb.CollabVMAuthServer;
 
-public class RegisterResponse
+public class SessionResponse
 {
     public bool success { get; set; }
     public string? error { get; set; }
-    public bool? verificationRequired { get; set; } = null;
+    public bool banned { get; set; } = false;
     public string? username { get; set; }
     public string? email { get; set; }
-    public string? sessionToken { get; set; }
 }

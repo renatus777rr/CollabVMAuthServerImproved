@@ -56,14 +56,20 @@ public class Program
         BannedPasswords = await File.ReadAllLinesAsync("rockyou.txt");
         // Configure web server
         var builder = WebApplication.CreateBuilder(args);
-#if !DEBUG
+#if DEBUG
+        builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Debug);
+#else
         builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Warning);
 #endif
         builder.WebHost.UseKestrel(k =>
         {
             k.Listen(IPAddress.Parse(Config.HTTP.Host), Config.HTTP.Port);
         });
+        builder.Services.AddCors();
         var app = builder.Build();
+        app.UseRouting();
+        // TODO: Make this more strict
+        app.UseCors(cors => cors.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
         app.Lifetime.ApplicationStarted.Register(() => Utilities.Log(LogLevel.INFO, $"Webserver listening on {Config.HTTP.Host}:{Config.HTTP.Port}"));
         // Register routes
         Routes.RegisterRoutes(app);
