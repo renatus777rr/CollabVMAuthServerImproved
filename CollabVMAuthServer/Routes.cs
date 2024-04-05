@@ -66,53 +66,58 @@ public static class Routes
             }, Utilities.JsonSerializerOptions);
         }
         // Validate new username
-        if (!string.IsNullOrWhiteSpace(payload.username) && !Utilities.ValidateUsername(payload.username))
+        if (!string.IsNullOrWhiteSpace(payload.username))
         {
-            return Results.Json(new UpdateResponse
+            if (!Utilities.ValidateUsername(payload.username))
             {
-                success = false,
-                error = "Usernames can contain only numbers, letters, spaces, dashes, underscores, and dots, and must be between 3 and 20 characters."
-            }, Utilities.JsonSerializerOptions);
+                return Results.Json(new UpdateResponse
+                {
+                    success = false,
+                    error = "Usernames can contain only numbers, letters, spaces, dashes, underscores, and dots, and must be between 3 and 20 characters."
+                }, Utilities.JsonSerializerOptions);
+            }
+            // Make sure username isn't taken
+            var _user = await Program.Database.GetUser(payload.username);
+            if (_user != null)
+            {
+                context.Response.StatusCode = 400;
+                return Results.Json(new RegisterResponse
+                {
+                    success = false,
+                    error = "That username is taken."
+                }, Utilities.JsonSerializerOptions);
+            }
         }
         // Validate new E-Mail
-        if (!string.IsNullOrWhiteSpace(payload.email) && !new EmailAddressAttribute().IsValid(payload.email))
+        if (!string.IsNullOrWhiteSpace(payload.email))
         {
-            return Results.Json(new UpdateResponse
+            if (!new EmailAddressAttribute().IsValid(payload.email))
             {
-                success = false,
-                error = "Malformed E-Mail address."
-            }, Utilities.JsonSerializerOptions);
-        }
-        if (!string.IsNullOrWhiteSpace(payload.email) && Program.Config.Registration.EmailDomainWhitelist &&
-            !Program.Config.Registration.AllowedEmailDomains.Contains(payload.email.Split("@")[1]))
-        {
-            return Results.Json(new UpdateResponse
+                return Results.Json(new UpdateResponse
+                {
+                    success = false,
+                    error = "Malformed E-Mail address."
+                }, Utilities.JsonSerializerOptions);
+            }
+            if (Program.Config.Registration.EmailDomainWhitelist && !Program.Config.Registration.AllowedEmailDomains.Contains(payload.email.Split("@")[1]))
             {
-                success = false,
-                error = "That E-Mail domain is not allowed."
-            }, Utilities.JsonSerializerOptions);
-        }
-        // Make sure username isn't taken
-        var _user = await Program.Database.GetUser(payload.username);
-        if (_user != null)
-        {
-            context.Response.StatusCode = 400;
-            return Results.Json(new RegisterResponse
+                return Results.Json(new UpdateResponse
+                {
+                    success = false,
+                    error = "That E-Mail domain is not allowed."
+                }, Utilities.JsonSerializerOptions);
+            }
+            // Check if E-Mail is in use
+            var _user = await Program.Database.GetUser(email: payload.email);
+            if (_user != null)
             {
-                success = false,
-                error = "That username is taken."
-            }, Utilities.JsonSerializerOptions);
-        }
-        // Check if E-Mail is in use
-        _user = await Program.Database.GetUser(email: payload.email);
-        if (_user != null)
-        {
-            context.Response.StatusCode = 400;
-            return Results.Json(new RegisterResponse
-            {
-                success = false,
-                error = "That E-Mail is already in use."
-            }, Utilities.JsonSerializerOptions);
+                context.Response.StatusCode = 400;
+                return Results.Json(new RegisterResponse
+                {
+                    success = false,
+                    error = "That E-Mail is already in use."
+                }, Utilities.JsonSerializerOptions);
+            }
         }
         // Validate new password
         if (!string.IsNullOrWhiteSpace(payload.newPassword))
