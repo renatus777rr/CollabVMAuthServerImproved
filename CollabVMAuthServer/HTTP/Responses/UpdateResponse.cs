@@ -1,4 +1,4 @@
-namespace Computernewb.CollabVMAuthServer;
+namespace Computernewb.CollabVMAuthServer.HTTP.Responses;
 
 public class UpdateResponse
 {

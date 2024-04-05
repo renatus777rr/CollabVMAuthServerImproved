@@ -1,4 +1,4 @@
-namespace Computernewb.CollabVMAuthServer;
+namespace Computernewb.CollabVMAuthServer.HTTP.Payloads;
 
 public class VerifyPayload
 {
