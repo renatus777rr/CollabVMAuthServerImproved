@@ -66,7 +66,7 @@ public static class Routes
             }, Utilities.JsonSerializerOptions);
         }
         // Validate new username
-        if (!string.IsNullOrWhiteSpace(payload.username))
+        if (payload.username != null)
         {
             if (!Utilities.ValidateUsername(payload.username))
             {
@@ -89,7 +89,7 @@ public static class Routes
             }
         }
         // Validate new E-Mail
-        if (!string.IsNullOrWhiteSpace(payload.email))
+        if (payload.email != null)
         {
             if (!new EmailAddressAttribute().IsValid(payload.email))
             {
@@ -120,7 +120,7 @@ public static class Routes
             }
         }
         // Validate new password
-        if (!string.IsNullOrWhiteSpace(payload.newPassword))
+        if (payload.newPassword != null)
         {
             if (!Utilities.ValidatePassword(payload.newPassword))
             {
@@ -141,7 +141,7 @@ public static class Routes
         }
         // Check for duplicate changes
         if (payload.username == user.Username || payload.email == user.Email ||
-            Argon2.Verify(user.Password, payload.newPassword))
+            (payload.newPassword != null && Argon2.Verify(user.Password, payload.newPassword)))
         {
             return Results.Json(new UpdateResponse
             {
