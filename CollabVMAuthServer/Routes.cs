@@ -38,7 +38,22 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<SendResetEmailPayload>();
+
+        SendResetEmailPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<SendResetEmailPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new SendResetEmailResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.email) || string.IsNullOrWhiteSpace(payload.username))
         {
             context.Response.StatusCode = 400;
@@ -111,7 +126,21 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<ResetPasswordPayload>();
+        ResetPasswordPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<ResetPasswordPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.username) ||
             string.IsNullOrWhiteSpace(payload.email) || string.IsNullOrWhiteSpace(payload.code) ||
             string.IsNullOrWhiteSpace(payload.newPassword))
@@ -185,7 +214,21 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<UpdatePayload>();
+        UpdatePayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<UpdatePayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new UpdateResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.token) ||
             string.IsNullOrWhiteSpace(payload.currentPassword) || (string.IsNullOrWhiteSpace(payload.newPassword) && string.IsNullOrWhiteSpace(payload.username) && string.IsNullOrWhiteSpace(payload.email)))
         {
@@ -333,7 +376,21 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<LogoutPayload>();
+        LogoutPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<LogoutPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new LogoutResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.token))
         {
             context.Response.StatusCode = 400;
@@ -373,7 +430,21 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<SessionPayload>();
+        SessionPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<SessionPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new SessionResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.token))
         {
             context.Response.StatusCode = 400;
@@ -425,7 +496,21 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<JoinPayload>();
+        JoinPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<JoinPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new JoinResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.secretKey) || string.IsNullOrWhiteSpace(payload.sessionToken) || string.IsNullOrWhiteSpace(payload.ip))
         {
             context.Response.StatusCode = 400;
@@ -522,7 +607,21 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<LoginPayload>();
+        LoginPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<LoginPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new LoginResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.username) || string.IsNullOrWhiteSpace(payload.password))
         {
             context.Response.StatusCode = 400;
@@ -627,7 +726,21 @@ public static class Routes
             }, Utilities.JsonSerializerOptions);
         }
 
-        var payload = await context.Request.ReadFromJsonAsync<VerifyPayload>();
+        VerifyPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<VerifyPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new VerifyResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.username) ||
             string.IsNullOrWhiteSpace(payload.password) || string.IsNullOrWhiteSpace(payload.password))
         {
@@ -705,7 +818,21 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
-        var payload = await context.Request.ReadFromJsonAsync<RegisterPayload>();
+        RegisterPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<RegisterPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new RegisterResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
         if (payload == null || string.IsNullOrWhiteSpace(payload.username) || string.IsNullOrWhiteSpace(payload.password) || string.IsNullOrWhiteSpace(payload.email) || string.IsNullOrWhiteSpace(payload.dateOfBirth))
         {
             context.Response.StatusCode = 400;
