@@ -10,7 +10,8 @@ public class User
     public string Email { get; set; }
     public DateOnly DateOfBirth { get; set; }
     public bool EmailVerified { get; set; }
-    public string EmailVerificationCode { get; set; }
+    public string? EmailVerificationCode { get; set; }
+    public string? PasswordResetCode { get; set; }
     public Rank Rank { get; set; }
     public bool Banned { get; set; }
     public IPAddress RegistrationIP { get; set; }

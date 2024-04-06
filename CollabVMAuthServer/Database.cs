@@ -1,3 +1,4 @@
+using System.Data;
 using System.Net;
 using Isopoh.Cryptography.Argon2;
 using MySqlConnector;
@@ -33,6 +34,7 @@ public class Database
                               date_of_birth DATE NOT NULL,
                               email_verified BOOLEAN NOT NULL DEFAULT 0,
                               email_verification_code CHAR(8) DEFAULT NULL,
+                              password_reset_code CHAR(8) DEFAULT NULL,
                               cvm_rank INT UNSIGNED NOT NULL DEFAULT 1,
                               banned BOOLEAN NOT NULL DEFAULT 0,
                               registration_ip VARBINARY(16) NOT NULL
@@ -47,6 +49,16 @@ public class Database
                               last_used TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                               last_ip VARBINARY(16) NOT NULL,
                               FOREIGN KEY (username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+                          )
+                          """;
+        await cmd.ExecuteNonQueryAsync();
+        // banned_by being NULL means the ban was automatic
+        cmd.CommandText = """
+                          CREATE TABLE IF NOT EXISTS ip_bans (
+                              ip VARBINARY(16) NOT NULL PRIMARY KEY,
+                              reason TEXT NOT NULL,
+                              banned_by VARCHAR(20) DEFAULT NULL,
+                              banned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                           )
                           """;
         await cmd.ExecuteNonQueryAsync();
@@ -80,10 +92,11 @@ public class Database
             Email = reader.GetString("email"),
             DateOfBirth = reader.GetDateOnly("date_of_birth"),
             EmailVerified = reader.GetBoolean("email_verified"),
-            EmailVerificationCode = reader.GetString("email_verification_code"),
+            EmailVerificationCode = reader.IsDBNull("email_verification_code") ? null : reader.GetString("email_verification_code"),
+            PasswordResetCode = reader.IsDBNull("password_reset_code") ? null : reader.GetString("password_reset_code"),
             Rank = (Rank)reader.GetUInt32("cvm_rank"),
             Banned = reader.GetBoolean("banned"),
-            RegistrationIP = new IPAddress(await reader.GetFieldValueAsync<byte[]>(8))
+            RegistrationIP = new IPAddress(reader.GetFieldValue<byte[]>("registration_ip"))
         };
     }
 
@@ -97,12 +110,12 @@ public class Database
                           INSERT INTO users
                             (username, password, email, date_of_birth, email_verified, email_verification_code, registration_ip)
                             VALUES
-                            (@username, @password, @email @date_of_birth, @email_verified, @email_verification_code, @registration_ip)
+                            (@username, @password, @email, @date_of_birth, @email_verified, @email_verification_code, @registration_ip)
                           """;
         cmd.Parameters.AddWithValue("@username", username);
         cmd.Parameters.AddWithValue("@password", Argon2.Hash(password));
         cmd.Parameters.AddWithValue("@email", email);
-        cmd.Parameters.AddWithValue("@date_of_birth", dateOfBirth);
+        cmd.Parameters.Add("@date_of_birth", MySqlDbType.Date).Value = dateOfBirth;
         cmd.Parameters.AddWithValue("@email_verified", verified);
         cmd.Parameters.AddWithValue("@email_verification_code", verificationcode);
         cmd.Parameters.AddWithValue("@registration_ip", ip.GetAddressBytes());
@@ -160,7 +173,7 @@ public class Database
                 Username = reader.GetString("username"),
                 Created = reader.GetDateTime("created"),
                 LastUsed = reader.GetDateTime("last_used"),
-                LastIP = new IPAddress(await reader.GetFieldValueAsync<byte[]>(4))
+                LastIP = new IPAddress(reader.GetFieldValue<byte[]>("last_ip"))
             });
         }
         return sessions.ToArray();
@@ -182,7 +195,7 @@ public class Database
             Username = reader.GetString("username"),
             Created = reader.GetDateTime("created"),
             LastUsed = reader.GetDateTime("last_used"),
-            LastIP = new IPAddress(await reader.GetFieldValueAsync<byte[]>(4))
+            LastIP = new IPAddress(reader.GetFieldValue<byte[]>("last_ip"))
         };
     }
 
@@ -217,7 +230,7 @@ public class Database
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task UpdateUser(string username, string? newUsername, string? newPassword, string? newEmail)
+    public async Task UpdateUser(string username, string? newUsername = null, string? newPassword = null, string? newEmail = null)
     {
         await using var db = new MySqlConnection(connectionString);
         await db.OpenAsync();
@@ -239,6 +252,58 @@ public class Database
             cmd.Parameters.AddWithValue("@newEmail", newEmail);
         }
         cmd.CommandText = $"UPDATE users SET {string.Join(", ", updates)} WHERE username = @username";
+        cmd.Parameters.AddWithValue("@username", username);
+        await cmd.ExecuteNonQueryAsync();
+    }
+    
+    public async Task BanIP(IPAddress ip, string reason, string? bannedBy = null)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "INSERT INTO ip_bans (ip, reason, banned_by) VALUES (@ip, @reason, @bannedBy)";
+        cmd.Parameters.AddWithValue("@ip", ip.GetAddressBytes());
+        cmd.Parameters.AddWithValue("@reason", reason);
+        cmd.Parameters.AddWithValue("@bannedBy", bannedBy);
+        await cmd.ExecuteNonQueryAsync();
+    }
+    
+    public async Task UnbanIP(IPAddress ip)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "DELETE FROM ip_bans WHERE ip = @ip";
+        cmd.Parameters.AddWithValue("@ip", ip.GetAddressBytes());
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<IPBan?> CheckIPBan(IPAddress ip)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT * FROM ip_bans WHERE ip = @ip";
+        cmd.Parameters.AddWithValue("@ip", ip.GetAddressBytes());
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+            return null;
+        return new IPBan
+        {
+            IP = new IPAddress(reader.GetFieldValue<byte[]>("ip")),
+            Reason = reader.GetString("reason"),
+            BannedBy = reader.IsDBNull("banned_by") ? null : reader.GetString("banned_by"),
+            BannedAt = reader.GetDateTime("banned_at")
+        };
+    }
+    
+    public async Task SetPasswordResetCode(string username, string? code)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "UPDATE users SET password_reset_code = @code WHERE username = @username";
+        cmd.Parameters.AddWithValue("@code", code);
         cmd.Parameters.AddWithValue("@username", username);
         await cmd.ExecuteNonQueryAsync();
     }

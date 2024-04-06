@@ -55,6 +55,8 @@ public class SMTPConfig
     public string FromEmail { get; set; }
     public string VerificationCodeSubject { get; set; }
     public string VerificationCodeBody { get; set; }
+    public string ResetPasswordSubject { get; set; }
+    public string ResetPasswordBody { get; set; }
 }
 
 public class hCaptchaConfig

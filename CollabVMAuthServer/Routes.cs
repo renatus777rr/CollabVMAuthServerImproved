@@ -22,6 +22,155 @@ public static class Routes
         app.MapPost("/api/v1/join", (Delegate)HandleJoin);
         app.MapPost("/api/v1/logout", (Delegate)HandleLogout);
         app.MapPost("/api/v1/update", (Delegate)HandleUpdate);
+        app.MapPost("/api/v1/sendreset", (Delegate)HandleSendReset);
+        app.MapPost("/api/v1/reset", (Delegate)HandleReset);
+    }
+
+    private static async Task<IResult> HandleSendReset(HttpContext context)
+    {
+        // Check payload
+        if (context.Request.ContentType != "application/json")
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new SendResetEmailResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        var payload = await context.Request.ReadFromJsonAsync<SendResetEmailPayload>();
+        if (payload == null || string.IsNullOrWhiteSpace(payload.email) || string.IsNullOrWhiteSpace(payload.username))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new SendResetEmailResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        var ip = Utilities.GetIP(context);
+        if (ip == null)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Empty;
+        }
+        // Check captcha response
+        if (Program.Config.hCaptcha.Enabled)
+        {
+            if (string.IsNullOrWhiteSpace(payload.captchaToken))
+            {
+                context.Response.StatusCode = 400;
+                return Results.Json(new SendResetEmailResponse
+                {
+                    success = false,
+                    error = "Missing hCaptcha token"
+                }, Utilities.JsonSerializerOptions);
+            }
+            var result =
+                await Program.hCaptcha!.Verify(payload.captchaToken, ip.ToString());
+            if (!result.success)
+            {
+                context.Response.StatusCode = 400;
+                return Results.Json(new SendResetEmailResponse
+                {
+                    success = false,
+                    error = "Invalid captcha response"
+                }, Utilities.JsonSerializerOptions);
+            }
+        }
+        // Check username and E-Mail
+        var user = await Program.Database.GetUser(payload.username);
+        if (user == null || user.Email != payload.email)
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new SendResetEmailResponse
+            {
+                success = false,
+                error = "Invalid username or E-Mail"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Generate reset code
+        var code = Program.Random.Next(10000000, 99999999).ToString();
+        await Program.Database.SetPasswordResetCode(payload.username, code);
+        await Program.Mailer.SendPasswordResetEmail(payload.username, payload.email, code);
+        return Results.Json(new SendResetEmailResponse
+        {
+            success = true
+        }, Utilities.JsonSerializerOptions);
+    }
+    
+    private static async Task<IResult> HandleReset(HttpContext context)
+    {
+        // Check payload
+        if (context.Request.ContentType != "application/json")
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        var payload = await context.Request.ReadFromJsonAsync<ResetPasswordPayload>();
+        if (payload == null || string.IsNullOrWhiteSpace(payload.username) ||
+            string.IsNullOrWhiteSpace(payload.email) || string.IsNullOrWhiteSpace(payload.code) ||
+            string.IsNullOrWhiteSpace(payload.newPassword))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check username and E-Mail
+        var user = await Program.Database.GetUser(payload.username);
+        if (user == null || user.Email != payload.email)
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "Invalid username or E-Mail"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check if code is correct
+        if (user.PasswordResetCode != payload.code)
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "Invalid reset code"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Validate new password
+        if (!Utilities.ValidatePassword(payload.newPassword))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "Passwords must be at least 8 characters and must contain an uppercase and lowercase letter, a number, and a symbol."
+            }, Utilities.JsonSerializerOptions);
+        }
+        if (Program.BannedPasswords.Contains(payload.newPassword))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "That password is commonly used and is not allowed."
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Reset password
+        await Program.Database.UpdateUser(payload.username, newPassword: payload.newPassword);
+        await Program.Database.SetPasswordResetCode(payload.username, null);
+        await Program.Database.RevokeAllSessions(payload.username);
+        return Results.Json(new ResetPasswordResponse
+        {
+            success = true
+        }, Utilities.JsonSerializerOptions);
     }
 
     private static async Task<IResult> HandleUpdate(HttpContext context)
@@ -296,6 +445,27 @@ public static class Routes
                 error = "Invalid secret key"
             }, Utilities.JsonSerializerOptions);
         }
+        // Check if IP banned
+        if (!IPAddress.TryParse(payload.ip, out var ip))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new JoinResponse
+            {
+                success = false,
+                error = "Malformed IP address"
+            });
+        }
+        var ban = await Program.Database.CheckIPBan(ip);
+        if (ban != null)
+        {
+            context.Response.StatusCode = 200;
+            return Results.Json(new JoinResponse
+            {
+                success = true,
+                clientSuccess = false,
+                error = "You are banned"
+            }, Utilities.JsonSerializerOptions);
+        }
         // Check if session is valid
         var session = await Program.Database.GetSession(payload.sessionToken);
         if (session == null)
@@ -401,6 +571,17 @@ public static class Routes
             {
                 success = false,
                 error = "Invalid username or password"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check if IP banned
+        var ban = await Program.Database.CheckIPBan(ip);
+        if (ban != null)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Json(new LoginResponse
+            {
+                success = false,
+                error = $"You are banned: {ban.Reason}"
             }, Utilities.JsonSerializerOptions);
         }
         // Check if account is verified
@@ -534,6 +715,17 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
+        // Check if IP banned
+        var ban = await Program.Database.CheckIPBan(ip);
+        if (ban != null)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Json(new RegisterResponse
+            {
+                success = false,
+                error = $"You are banned: {ban.Reason}"
+            }, Utilities.JsonSerializerOptions);
+        }
         // Check captcha response
         if (Program.Config.hCaptcha.Enabled)
         {
@@ -643,11 +835,22 @@ public static class Routes
         if (dob.AddYears(13) > DateOnly.FromDateTime(DateTime.Now))
         {
             context.Response.StatusCode = 400;
+            await Program.Database.BanIP(ip, "You are not old enough to use CollabVM.");
             return Results.Json(new RegisterResponse
             {
                 success = false,
-                error = "You must be at least 13 years old to register."
+                error = "You are not old enough to use CollabVM."
             }, Utilities.JsonSerializerOptions);
+        }
+        // theres no fucking chance
+        if (dob < new DateOnly(1954, 1, 1))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new RegisterResponse
+            {
+                success = false,
+                error = "Are you sure about that?"
+            });
         }
         // Create the account
         if (Program.Config.Registration.EmailVerificationRequired)
