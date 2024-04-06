@@ -1,4 +1,5 @@
 using System.Net;
+using Computernewb.CollabVMAuthServer.HTTP;
 using Tomlet;
 
 namespace Computernewb.CollabVMAuthServer;

@@ -1,14 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using System.Net;
-using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Computernewb.CollabVMAuthServer.HTTP.Payloads;
 using Computernewb.CollabVMAuthServer.HTTP.Responses;
 using Isopoh.Cryptography.Argon2;
-using Microsoft.AspNetCore.Http.HttpResults;
 
-namespace Computernewb.CollabVMAuthServer;
+namespace Computernewb.CollabVMAuthServer.HTTP;
 
 public static class Routes
 {
