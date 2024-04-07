@@ -8,4 +8,5 @@ public class LoginResponse
     public bool? verificationRequired { get; set; }
     public string? email { get; set; }
     public string? username { get; set; }
+    public int rank { get; set; }
 }

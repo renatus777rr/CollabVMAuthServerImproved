@@ -269,8 +269,7 @@ public static class Routes
                 }, Utilities.JsonSerializerOptions);
             }
             // Make sure username isn't taken
-            var _user = await Program.Database.GetUser(payload.username);
-            if (_user != null)
+            if (await Program.Database.GetUser(payload.username) != null || await Program.Database.GetBot(payload.username) != null)
             {
                 context.Response.StatusCode = 400;
                 return Results.Json(new RegisterResponse
@@ -462,7 +461,7 @@ public static class Routes
             }, Utilities.JsonSerializerOptions);
         }
         // Check if session is expired
-        if (DateTime.Now > session.LastUsed.AddDays(Program.Config.Accounts.SessionExpiryDays))
+        if (Utilities.IsSessionExpired(session))
         {
             return Results.Json(new SessionResponse
             {
@@ -477,7 +476,8 @@ public static class Routes
             success = true,
             banned = user.Banned,
             username = user.Username,
-            email = user.Email
+            email = user.Email,
+            rank = (int)user.Rank
         }, Utilities.JsonSerializerOptions);
     }
 
@@ -549,47 +549,80 @@ public static class Routes
             }, Utilities.JsonSerializerOptions);
         }
         // Check if session is valid
-        var session = await Program.Database.GetSession(payload.sessionToken);
-        if (session == null)
+        if (payload.sessionToken.Length == 32)
         {
+            // User
+            var session = await Program.Database.GetSession(payload.sessionToken);
+            if (session == null)
+            {
+                return Results.Json(new JoinResponse
+                {
+                    success = true,
+                    clientSuccess = false,
+                    error = "Invalid session",
+                }, Utilities.JsonSerializerOptions);
+            }
+            // Check if session is expired
+            if (DateTime.Now > session.LastUsed.AddDays(Program.Config.Accounts.SessionExpiryDays))
+            {
+                return Results.Json(new JoinResponse
+                {
+                    success = true,
+                    clientSuccess = false,
+                    error = "Invalid session",
+                }, Utilities.JsonSerializerOptions);
+            }
+            // Check if banned
+            var user = await Program.Database.GetUser(session.Username) 
+                       ?? throw new Exception("User not found in database (something is very wrong)");
+            if (user.Banned)
+            {
+                return Results.Json(new JoinResponse
+                {
+                    success = true,
+                    clientSuccess = false,
+                    error = "You are banned",
+                }, Utilities.JsonSerializerOptions);
+            }
+            // Update session
+            await Program.Database.UpdateSessionLastUsed(session.Token, IPAddress.Parse(payload.ip));
             return Results.Json(new JoinResponse
             {
                 success = true,
-                clientSuccess = false,
-                error = "Invalid session",
+                clientSuccess = true,
+                username = session.Username,
+                rank = user.Rank
             }, Utilities.JsonSerializerOptions);
-        }
-        // Check if session is expired
-        if (DateTime.Now > session.LastUsed.AddDays(Program.Config.Accounts.SessionExpiryDays))
+        } else if (payload.sessionToken.Length == 64)
         {
+            // Bot
+            var bot = await Program.Database.GetBot(token: payload.sessionToken);
+            if (bot == null)
+            {
+                return Results.Json(new JoinResponse
+                {
+                    success = true,
+                    clientSuccess = false,
+                    error = "Invalid session",
+                }, Utilities.JsonSerializerOptions);
+            }
             return Results.Json(new JoinResponse
             {
                 success = true,
-                clientSuccess = false,
-                error = "Invalid session",
+                clientSuccess = true,
+                username = bot.Username,
+                rank = bot.Rank
             }, Utilities.JsonSerializerOptions);
         }
-        // Check if banned
-        var user = await Program.Database.GetUser(session.Username) 
-            ?? throw new Exception("User not found in database (something is very wrong)");
-        if (user.Banned)
+        else
         {
+            context.Response.StatusCode = 400;
             return Results.Json(new JoinResponse
             {
-                success = true,
-                clientSuccess = false,
-                error = "You are banned",
+                success = false,
+                error = "Invalid session"
             }, Utilities.JsonSerializerOptions);
         }
-        // Update session
-        await Program.Database.UpdateSessionLastUsed(session.Token, IPAddress.Parse(payload.ip));
-        return Results.Json(new JoinResponse
-        {
-            success = true,
-            clientSuccess = true,
-            username = session.Username,
-            rank = user.Rank
-        }, Utilities.JsonSerializerOptions);
     }
 
     private static async Task<IResult> HandleLogin(HttpContext context)
@@ -689,6 +722,7 @@ public static class Routes
                 verificationRequired = true,
                 email = user.Email,
                 username = user.Username,
+                rank = (int)user.Rank
             });
         }
         // Check max sessions
@@ -706,7 +740,8 @@ public static class Routes
             success = true,
             token = token,
             username = user.Username,
-            email = user.Email
+            email = user.Email,
+            rank = (int)user.Rank
         }, Utilities.JsonSerializerOptions);
     }
 
@@ -876,7 +911,7 @@ public static class Routes
         }
         // Make sure username isn't taken
         var user = await Program.Database.GetUser(payload.username);
-        if (user != null)
+        if (user != null || await Program.Database.GetBot(payload.username) != null)
         {
             context.Response.StatusCode = 400;
             return Results.Json(new RegisterResponse

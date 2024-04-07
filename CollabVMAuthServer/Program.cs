@@ -74,6 +74,8 @@ public class Program
         app.Lifetime.ApplicationStarted.Register(() => Utilities.Log(LogLevel.INFO, $"Webserver listening on {Config.HTTP.Host}:{Config.HTTP.Port}"));
         // Register routes
         Routes.RegisterRoutes(app);
+        AdminRoutes.RegisterRoutes(app);
+        DeveloperRoutes.RegisterRoutes(app);
         app.Run();
     }
 }

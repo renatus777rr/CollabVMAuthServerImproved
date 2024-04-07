@@ -7,4 +7,5 @@ public class SessionResponse
     public bool banned { get; set; } = false;
     public string? username { get; set; }
     public string? email { get; set; }
+    public int rank { get; set; }
 }

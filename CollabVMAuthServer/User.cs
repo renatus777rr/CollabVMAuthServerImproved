@@ -15,6 +15,8 @@ public class User
     public Rank Rank { get; set; }
     public bool Banned { get; set; }
     public IPAddress RegistrationIP { get; set; }
+    public DateTime Joined { get; set; }
+    public bool Developer { get; set; }
 }
 
 public enum Rank : uint

@@ -120,4 +120,9 @@ public static class Utilities
         }
         else return ctx.Connection.RemoteIpAddress;
     }
+
+    public static bool IsSessionExpired(Session session)
+    {
+        return DateTime.Now > session.LastUsed.AddDays(Program.Config.Accounts.SessionExpiryDays);
+    }
 }
