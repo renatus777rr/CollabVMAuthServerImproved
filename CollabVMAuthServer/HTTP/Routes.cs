@@ -619,7 +619,8 @@ public static class Routes
             context.Response.StatusCode = 400;
             return Results.Json(new JoinResponse
             {
-                success = false,
+                success = true,
+                clientSuccess = false,
                 error = "Invalid session"
             }, Utilities.JsonSerializerOptions);
         }
