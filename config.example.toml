@@ -1,0 +1,55 @@
+[Registration]
+EmailVerificationRequired = true
+EmailDomainWhitelist = true
+AllowedEmailDomains = [
+	# Public providers
+	"gmail.com", "outlook.com", "icloud.com", "yahoo.com", "yandex.com", "yandex.ru", "gmx.com", "spectrum.net", "comcast.net", "aol.com", "proton.me", "protonmail.com", "tutanota.com", "fastmail.fm", 
+	# CollabVM and friends
+	"computernewb.com", "elijahr.dev", "darkok.xyz", "kevinthe.horse", "kevinhosting.xyz",
+]
+
+[Accounts]
+MaxSessions = 10
+SessionExpiryDays = 30
+
+[CollabVM]
+SecretKey = "hunter2"
+
+[HTTP]
+Host = "127.0.0.1"
+Port = 5858
+UseXForwardedFor = false
+TrustedProxies = ["127.0.0.1"]
+
+[MySQL]
+Host = "127.0.0.1"
+Username = "root"
+Password = "hunter2"
+Database = "collabvm_auth"
+
+[SMTP]
+Host = "localhost"
+Port = 587
+Username = "noreply@example.com"
+Password = "hunter2"
+FromName = "CollabVM"
+FromEmail = "noreply@example.com"
+VerificationCodeSubject = "CollabVM Account Verification"
+VerificationCodeBody = """
+Howdy! Someone (probably you) has tried to create a CollabVM account with this E-Mail. If this was you, your verification code is: $CODE
+
+If this was not you, someone probably entered your e-mail by mistake. If this is the case, you can safely ignore this e-mail.
+"""
+ResetPasswordSubject = "CollabVM Password Reset"
+ResetPasswordBody = """
+Howdy, $USERNAME! Someone (probably you) has sent a request to reset the password to your CollabVM account with this E-Mail. If this was you, your verification code is: $CODE
+
+If this was not you, disregard this E-Mail and your password will remain unchanged. Do not share this code with anyone.
+"""
+
+[hCaptcha]
+Enabled = false
+Secret = ""
+SiteKey = ""
+
+
