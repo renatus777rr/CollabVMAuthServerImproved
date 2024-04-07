@@ -8,4 +8,5 @@ public class SessionResponse
     public string? username { get; set; }
     public string? email { get; set; }
     public int rank { get; set; }
+    public bool? developer { get; set; } = null;
 }

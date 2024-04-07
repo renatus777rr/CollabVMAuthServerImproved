@@ -477,7 +477,8 @@ public static class Routes
             banned = user.Banned,
             username = user.Username,
             email = user.Email,
-            rank = (int)user.Rank
+            rank = (int)user.Rank,
+            developer = user.Developer
         }, Utilities.JsonSerializerOptions);
     }
 
@@ -723,7 +724,8 @@ public static class Routes
                 verificationRequired = true,
                 email = user.Email,
                 username = user.Username,
-                rank = (int)user.Rank
+                rank = (int)user.Rank,
+                developer = user.Developer
             });
         }
         // Check max sessions

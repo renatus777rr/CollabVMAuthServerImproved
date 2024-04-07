@@ -9,4 +9,5 @@ public class LoginResponse
     public string? email { get; set; }
     public string? username { get; set; }
     public int rank { get; set; }
+    public bool? developer { get; set; } = null;
 }
