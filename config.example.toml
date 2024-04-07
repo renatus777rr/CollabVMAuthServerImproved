@@ -3,7 +3,12 @@ EmailVerificationRequired = true
 EmailDomainWhitelist = true
 AllowedEmailDomains = [
 	# Public providers
-	"gmail.com", "outlook.com", "icloud.com", "yahoo.com", "yandex.com", "yandex.ru", "gmx.com", "spectrum.net", "comcast.net", "aol.com", "proton.me", "protonmail.com", "tutanota.com", "fastmail.fm", 
+	"gmail.com", "outlook.com", "icloud.com", "yahoo.com", "yandex.com",
+	"yandex.ru", "gmx.com", "spectrum.net", "comcast.net", "aol.com",
+	"proton.me", "protonmail.com", "tutanota.com", "fastmail.fm",
+	"mail.com", "email.com", "protonmail.ch", "googlemail.com", "gmx.de",
+	"hotmail.com", "live.com", "msn.com", "mail.ru", "googlemail.com",
+	"web.de", "t-online.de",
 	# CollabVM and friends
 	"computernewb.com", "elijahr.dev", "darkok.xyz", "kevinthe.horse", "kevinhosting.xyz",
 ]
