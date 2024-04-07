@@ -744,7 +744,8 @@ public static class Routes
             token = token,
             username = user.Username,
             email = user.Email,
-            rank = (int)user.Rank
+            rank = (int)user.Rank,
+            developer = user.Developer
         }, Utilities.JsonSerializerOptions);
     }
 
