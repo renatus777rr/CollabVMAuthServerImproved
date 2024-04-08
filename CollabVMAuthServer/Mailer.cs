@@ -9,6 +9,14 @@ public class Mailer
     private SMTPConfig Config;
     public Mailer(SMTPConfig config)
     {
+        if (config.Host == null || config.Port == null || config.Username == null || config.Password == null ||
+            config.FromName == null || config.FromEmail == null || config.VerificationCodeSubject == null ||
+            config.VerificationCodeBody == null || config.ResetPasswordSubject == null ||
+            config.ResetPasswordBody == null)
+        {
+            Utilities.Log(LogLevel.FATAL,"SMTPConfig is missing required fields");
+            Environment.Exit(1);
+        }
         Config = config;
     }
 
@@ -29,7 +37,7 @@ public class Mailer
                 .Replace("$CODE", code)
         };
         using var client = new SmtpClient();
-        await client.ConnectAsync(Config.Host, Config.Port, SecureSocketOptions.StartTlsWhenAvailable);
+        await client.ConnectAsync(Config.Host, (int)Config.Port, SecureSocketOptions.StartTlsWhenAvailable);
         await client.AuthenticateAsync(Config.Username, Config.Password);
         await client.SendAsync(message);
         await client.DisconnectAsync(true);
@@ -53,7 +61,7 @@ public class Mailer
                 .Replace("$CODE", code)
         };
         using var client = new SmtpClient();
-        await client.ConnectAsync(Config.Host, Config.Port, SecureSocketOptions.StartTlsWhenAvailable);
+        await client.ConnectAsync(Config.Host, (int)Config.Port, SecureSocketOptions.StartTlsWhenAvailable);
         await client.AuthenticateAsync(Config.Username, Config.Password);
         await client.SendAsync(message);
         await client.DisconnectAsync(true);

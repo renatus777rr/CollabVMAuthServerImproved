@@ -47,16 +47,17 @@ public class MySQLConfig
 
 public class SMTPConfig
 {
-    public string Host { get; set; }
-    public int Port { get; set; }
-    public string Username { get; set; }
-    public string Password { get; set; }
-    public string FromName { get; set; }
-    public string FromEmail { get; set; }
-    public string VerificationCodeSubject { get; set; }
-    public string VerificationCodeBody { get; set; }
-    public string ResetPasswordSubject { get; set; }
-    public string ResetPasswordBody { get; set; }
+    public bool Enabled { get; set; }
+    public string? Host { get; set; }
+    public int? Port { get; set; }
+    public string? Username { get; set; }
+    public string? Password { get; set; }
+    public string? FromName { get; set; }
+    public string? FromEmail { get; set; }
+    public string? VerificationCodeSubject { get; set; }
+    public string? VerificationCodeBody { get; set; }
+    public string? ResetPasswordSubject { get; set; }
+    public string? ResetPasswordBody { get; set; }
 }
 
 public class hCaptchaConfig

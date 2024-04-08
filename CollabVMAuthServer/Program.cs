@@ -9,7 +9,7 @@ public class Program
     public static IConfig Config { get; private set; }
     public static Database Database { get; private set; }
     public static hCaptchaClient? hCaptcha { get; private set; }
-    public static Mailer Mailer { get; private set; }
+    public static Mailer? Mailer { get; private set; }
     public static string[] BannedPasswords { get; set; }
     public static readonly Random Random = new Random();
     public static async Task Main(string[] args)
@@ -42,7 +42,13 @@ public class Program
         await Database.Init();
         Utilities.Log(LogLevel.INFO, "Connected to database");
         // Create mailer
-        Mailer = new Mailer(Config.SMTP);
+        if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
+        {
+            Utilities.Log(LogLevel.FATAL, "Email verification is required but SMTP is disabled");
+            Environment.Exit(1);
+            return;
+        }
+        Mailer = Config.SMTP.Enabled ? new Mailer(Config.SMTP) : null;
         // Create hCaptcha client
         if (Config.hCaptcha.Enabled)
         {

@@ -149,6 +149,16 @@ public static class Routes
                 error = "Invalid request body"
             }, Utilities.JsonSerializerOptions);
         }
+        // Is mailer enabled?
+        if (Program.Mailer == null)
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new ResetPasswordResponse
+            {
+                success = false,
+                error = "Password reset is disabled"
+            }, Utilities.JsonSerializerOptions);
+        }
         // Check username and E-Mail
         var user = await Program.Database.GetUser(payload.username);
         if (user == null || user.Email != payload.email)
