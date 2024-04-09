@@ -1041,7 +1041,7 @@ public static class Routes
         }
         else
         {
-            await Program.Database.RegisterAccount(payload.username, payload.email, dob, payload.password, true, null);
+            await Program.Database.RegisterAccount(payload.username, payload.email, dob, payload.password, true, ip, null);
             var token = Utilities.RandomString(32);
             await Program.Database.CreateSession(user.Username, token, ip);
             return Results.Json(new RegisterResponse
