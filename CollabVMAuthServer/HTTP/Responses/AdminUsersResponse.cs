@@ -15,6 +15,7 @@ public class AdminUser
     public string email { get; set; }
     public int rank { get; set; }
     public bool banned { get; set; }
+    public string banReason { get; set; }
     public string dateOfBirth { get; set; }
     public string dateJoined { get; set; }
     public string registrationIp { get; set; }

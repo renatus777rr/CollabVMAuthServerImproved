@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using Computernewb.CollabVMAuthServer.HTTP.Payloads;
 using Computernewb.CollabVMAuthServer.HTTP.Responses;
@@ -11,6 +12,160 @@ public static class AdminRoutes
         app.MapPost("/api/v1/admin/users", (Delegate)HandleAdminUsers);
         app.MapPost("/api/v1/admin/updateuser", (Delegate)HandleAdminUpdateUser);
         app.MapPost("/api/v1/admin/updatebot", (Delegate)HandleAdminUpdateBot);
+        app.MapPost("/api/v1/admin/ban", (Delegate)HandleBanUser);
+        app.MapPost("/api/v1/admin/ipban", (Delegate)HandleIPBan);
+    }
+
+    private static async Task<IResult> HandleIPBan(HttpContext context)
+    {
+        // Check payload
+        if (context.Request.ContentType != "application/json")
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new IPBanResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        IPBanPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<IPBanPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new IPBanResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        if (payload == null || string.IsNullOrWhiteSpace(payload.session) || string.IsNullOrWhiteSpace(payload.ip) || (payload.banned && string.IsNullOrWhiteSpace(payload.reason)) || payload.banned == null || !IPAddress.TryParse(payload.ip, out var ip))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new IPBanResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check token
+        var session = await Program.Database.GetSession(payload.session);
+        if (session == null || Utilities.IsSessionExpired(session))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new IPBanResponse
+            {
+                success = false,
+                error = "Invalid session"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check rank
+        var user = await Program.Database.GetUser(session.Username)
+                   ?? throw new Exception("Could not lookup user from session");
+        if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Json(new IPBanResponse
+            {
+                success = false,
+                error = "Insufficient permissions"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Set ban
+        if (payload.banned)
+        {
+            await Program.Database.BanIP(ip, payload.reason, user.Username);
+        }
+        else
+        {
+            await Program.Database.UnbanIP(ip);
+        }
+        return Results.Json(new IPBanResponse
+        {
+            success = true
+        }, Utilities.JsonSerializerOptions);
+    }
+
+    private static async Task<IResult> HandleBanUser(HttpContext context)
+    {
+        // Check payload
+        if (context.Request.ContentType != "application/json")
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new BanUserResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        BanUserPayload? payload;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<BanUserPayload>();
+        }
+        catch (JsonException ex)
+        {
+            Utilities.Log(LogLevel.DEBUG, $"Failed to parse JSON: {ex.Message}");
+            context.Response.StatusCode = 400;
+            return Results.Json(new BanUserResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        if (payload == null || string.IsNullOrWhiteSpace(payload.token) || string.IsNullOrWhiteSpace(payload.username) || (payload.banned && string.IsNullOrWhiteSpace(payload.reason)) || payload.banned == null)
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new BanUserResponse
+            {
+                success = false,
+                error = "Invalid request body"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check token
+        var session = await Program.Database.GetSession(payload.token);
+        if (session == null || Utilities.IsSessionExpired(session))
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new BanUserResponse
+            {
+                success = false,
+                error = "Invalid session"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check rank
+        var user = await Program.Database.GetUser(session.Username)
+                   ?? throw new Exception("Could not lookup user from session");
+        if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Json(new BanUserResponse
+            {
+                success = false,
+                error = "Insufficient permissions"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Check target user
+        var targetUser = await Program.Database.GetUser(payload.username);
+        if (targetUser == null)
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new BanUserResponse
+            {
+                success = false,
+                error = "User not found"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Set ban
+        await Program.Database.SetBanned(targetUser.Username, payload.banned, payload.banned ? payload.reason : null);
+        return Results.Json(new BanUserResponse
+        {
+            success = true
+        }, Utilities.JsonSerializerOptions);
     }
 
     private static async Task<IResult> HandleAdminUpdateBot(HttpContext context)
@@ -63,7 +218,7 @@ public static class AdminRoutes
         // Check rank
         var user = await Program.Database.GetUser(session.Username)
                    ?? throw new Exception("Could not lookup user from session");
-        if (user.Rank != Rank.Admin)
+        if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
             return Results.Json(new AdminUsersResponse
@@ -91,6 +246,25 @@ public static class AdminRoutes
             {
                 success = false,
                 error = "No fields to update"
+            }, Utilities.JsonSerializerOptions);
+        }
+        // Moderators cannot promote bots to admin, and can only promote their own bots to moderator
+        else if ((Rank)payload.rank == Rank.Admin && user.Rank == Rank.Moderator)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Json(new AdminUpdateBotResponse
+            {
+                success = false,
+                error = "Insufficient permissions"
+            }, Utilities.JsonSerializerOptions);
+        }
+        if (targetBot.Owner != user.Username && user.Rank == Rank.Moderator)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Json(new AdminUpdateBotResponse
+            {
+                success = false,
+                error = "Insufficient permissions"
             }, Utilities.JsonSerializerOptions);
         }
         // Check rank
@@ -193,6 +367,16 @@ public static class AdminRoutes
                 error = "Invalid rank"
             }, Utilities.JsonSerializerOptions);
         }
+        // Moderators cannot change ranks
+        if (user.Rank == Rank.Moderator && rank != null)
+        {
+            context.Response.StatusCode = 403;
+            return Results.Json(new AdminUpdateUserResponse
+            {
+                success = false,
+                error = "Insufficient permissions"
+            }, Utilities.JsonSerializerOptions);
+        }
         // Check developer
         bool? developer = payload.developer;
         // Update rank
@@ -257,7 +441,7 @@ public static class AdminRoutes
         // Check rank
         var user = await Program.Database.GetUser(session.Username)
                    ?? throw new Exception("Could not lookup user from session");
-        if (user.Rank != Rank.Admin)
+        if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
             return Results.Json(new AdminUsersResponse
@@ -293,6 +477,7 @@ public static class AdminRoutes
             email = user.Email,
             rank = (int)user.Rank,
             banned = user.Banned,
+            banReason = user.BanReason ?? "",
             dateOfBirth = user.DateOfBirth.ToString("yyyy-MM-dd"),
             dateJoined = user.Joined.ToString("yyyy-MM-dd HH:mm:ss"),
             registrationIp = user.RegistrationIP.ToString(),

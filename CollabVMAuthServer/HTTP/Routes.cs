@@ -556,7 +556,9 @@ public static class Routes
             {
                 success = true,
                 clientSuccess = false,
-                error = "You are banned"
+                error = "Banned",
+                banned = true,
+                banReason = ban.Reason
             }, Utilities.JsonSerializerOptions);
         }
         // Check if session is valid
@@ -592,7 +594,9 @@ public static class Routes
                 {
                     success = true,
                     clientSuccess = false,
-                    error = "You are banned",
+                    banned = true,
+                    error = "Banned",
+                    banReason = user.BanReason
                 }, Utilities.JsonSerializerOptions);
             }
             // Update session
@@ -1026,33 +1030,29 @@ public static class Routes
             });
         }
         // Create the account
+        string? token = null;
         if (Program.Config.Registration.EmailVerificationRequired)
         {
             var code = Program.Random.Next(10000000, 99999999).ToString();
             await Program.Database.RegisterAccount(payload.username, payload.email, dob, payload.password, false, ip,code);
             await Program.Mailer.SendVerificationCode(payload.username, payload.email, code);
-            return Results.Json(new RegisterResponse
-            {
-                success = true,
-                verificationRequired = true,
-                email = payload.email,
-                username = payload.username
-            }, Utilities.JsonSerializerOptions);
         }
         else
         {
             await Program.Database.RegisterAccount(payload.username, payload.email, dob, payload.password, true, ip, null);
-            var token = Utilities.RandomString(32);
+            token = Utilities.RandomString(32);
             await Program.Database.CreateSession(payload.username, token, ip);
-            return Results.Json(new RegisterResponse
-            {
-                success = true,
-                verificationRequired = false,
-                email = payload.email,
-                username = payload.username,
-                sessionToken = token
-            }, Utilities.JsonSerializerOptions);
         }
+        // If this is the first user, make them an admin
+        if (await Program.Database.CountUsers() == 1) await Program.Database.UpdateUser(payload.username, newRank: (int)Rank.Admin);
+        return Results.Json(new RegisterResponse
+        {
+            success = true,
+            verificationRequired = Program.Config.Registration.EmailVerificationRequired,
+            email = payload.email,
+            username = payload.username,
+            sessionToken = token
+        }, Utilities.JsonSerializerOptions);
     }
 
     private static IResult HandleInfo(HttpContext context)

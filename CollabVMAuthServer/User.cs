@@ -14,6 +14,7 @@ public class User
     public string? PasswordResetCode { get; set; }
     public Rank Rank { get; set; }
     public bool Banned { get; set; }
+    public string? BanReason { get; set; }
     public IPAddress RegistrationIP { get; set; }
     public DateTime Joined { get; set; }
     public bool Developer { get; set; }

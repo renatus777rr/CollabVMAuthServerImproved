@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using Computernewb.CollabVMAuthServer.HTTP;
 using Tomlet;
 
@@ -14,7 +15,8 @@ public class Program
     public static readonly Random Random = new Random();
     public static async Task Main(string[] args)
     {
-        Utilities.Log(LogLevel.INFO, "CollabVM Authentication Server starting up");
+        var ver = Assembly.GetExecutingAssembly().GetName().Version;
+        Utilities.Log(LogLevel.INFO, $"CollabVM Authentication Server v{ver.Major}.{ver.Minor}.{ver.Revision} starting up");
         // Read config.toml
         string configraw;
         try
@@ -39,8 +41,20 @@ public class Program
         }
         // Initialize database
         Database = new Database(Config.MySQL);
-        await Database.Init();
+        // Get version before initializing
+        int dbversion = await Database.GetDatabaseVersion();
         Utilities.Log(LogLevel.INFO, "Connected to database");
+        Utilities.Log(LogLevel.INFO, dbversion == -1 ? "Initializing tables..." : $"Database version: {dbversion}");
+        await Database.Init();
+        // If database was version 0, that should now be set, as versioning did not exist then
+        if (dbversion == 0) await Database.SetDatabaseVersion(0);
+        // If database was -1, that means it was just initialized and we should set it to the current version
+        if (dbversion == -1) await Database.SetDatabaseVersion(DatabaseUpdate.CurrentVersion);
+        // Perform any necessary database updates
+        await DatabaseUpdate.Update(Database);
+        var uc = await Database.CountUsers();
+        Utilities.Log(LogLevel.INFO, $"{uc} users in database");
+        if (uc == 0) Utilities.Log(LogLevel.WARN, "No users in database, first user will be promoted to admin");
         // Create mailer
         if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
         {

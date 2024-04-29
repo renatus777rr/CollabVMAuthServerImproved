@@ -63,7 +63,7 @@ public static class Utilities
             case LogLevel.WARN:
             case LogLevel.ERROR:
             case LogLevel.FATAL:
-                Console.Error.Write(logstr.ToString());
+                Console.Error.WriteLine(logstr.ToString());
                 break;
         }
     }

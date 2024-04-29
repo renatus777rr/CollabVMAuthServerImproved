@@ -37,6 +37,7 @@ public class Database
                               password_reset_code CHAR(8) DEFAULT NULL,
                               cvm_rank INT UNSIGNED NOT NULL DEFAULT 1,
                               banned BOOLEAN NOT NULL DEFAULT 0,
+                              ban_reason TEXT DEFAULT NULL,
                               registration_ip VARBINARY(16) NOT NULL,
                               created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                               developer BOOLEAN NOT NULL DEFAULT 0
@@ -76,6 +77,13 @@ public class Database
                           )
                           """;
         await cmd.ExecuteNonQueryAsync();
+        cmd.CommandText = """
+                          CREATE TABLE IF NOT EXISTS meta (
+                              setting VARCHAR(20) NOT NULL PRIMARY KEY,
+                              val TEXT NOT NULL
+                          )
+                          """;
+        await cmd.ExecuteNonQueryAsync();
     }
     
     public async Task<User?> GetUser(string? username = null, string? email = null)
@@ -110,6 +118,7 @@ public class Database
             PasswordResetCode = reader.IsDBNull("password_reset_code") ? null : reader.GetString("password_reset_code"),
             Rank = (Rank)reader.GetUInt32("cvm_rank"),
             Banned = reader.GetBoolean("banned"),
+            BanReason = reader.IsDBNull("ban_reason") ? null : reader.GetString("ban_reason"),
             RegistrationIP = new IPAddress(reader.GetFieldValue<byte[]>("registration_ip")),
             Joined = reader.GetDateTime("created"),
             Developer = reader.GetBoolean("developer")
@@ -363,6 +372,7 @@ public class Database
                 PasswordResetCode = reader.IsDBNull("password_reset_code") ? null : reader.GetString("password_reset_code"),
                 Rank = (Rank)reader.GetUInt32("cvm_rank"),
                 Banned = reader.GetBoolean("banned"),
+                BanReason = reader.IsDBNull("ban_reason") ? null : reader.GetString("ban_reason"),
                 RegistrationIP = new IPAddress(reader.GetFieldValue<byte[]>("registration_ip")),
                 Joined = reader.GetDateTime("created"),
                 Developer = reader.GetBoolean("developer")
@@ -477,5 +487,64 @@ public class Database
             Owner = reader.GetString("owner"),
             Created = reader.GetDateTime("created")
         };
+    }
+
+    public async Task<int> GetDatabaseVersion()
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        // If `users` table doesn't exist, return -1. This is hacky but I don't know of a better way
+        cmd.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'users'";
+        if ((long)(await cmd.ExecuteScalarAsync() ?? 0) == 0)
+            return -1;
+        // If `meta` table doesn't exist, assume version 0
+        cmd.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'meta'";
+        if ((long)(await cmd.ExecuteScalarAsync() ?? 0) == 0)
+            return 0;
+        cmd.CommandText = "SELECT val FROM meta WHERE setting = 'db_version'";
+        await using var reader = await cmd.ExecuteReaderAsync();
+        await reader.ReadAsync();
+        return int.Parse(reader.GetString("val"));
+    }
+    
+    public async Task SetDatabaseVersion(int version)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "INSERT INTO meta (setting, val) VALUES ('db_version', @version) ON DUPLICATE KEY UPDATE val = @version";
+        cmd.Parameters.AddWithValue("@version", version.ToString());
+        await cmd.ExecuteNonQueryAsync();
+    }
+    
+    public async Task ExecuteNonQuery(string query)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = query;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task SetBanned(string username, bool banned, string? reason)
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "UPDATE users SET banned = @banned, ban_reason = @reason WHERE username = @username";
+        cmd.Parameters.AddWithValue("@banned", banned);
+        cmd.Parameters.AddWithValue("@reason", reason);
+        cmd.Parameters.AddWithValue("@username", username);
+        await cmd.ExecuteNonQueryAsync();
+    }
+    
+    public async Task<long> CountUsers()
+    {
+        await using var db = new MySqlConnection(connectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM users";
+        return (long)await cmd.ExecuteScalarAsync();
     }
 }

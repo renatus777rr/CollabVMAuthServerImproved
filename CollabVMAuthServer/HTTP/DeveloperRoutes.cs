@@ -63,7 +63,7 @@ public static class DeveloperRoutes
         // Check developer status
         var user = await Program.Database.GetUser(session.Username) ??
                    throw new Exception("Unable to get user from session");
-        if (!user.Developer && user.Rank != Rank.Admin)
+        if (!user.Developer && user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
             return Results.Json(new CreateBotResponse
@@ -72,8 +72,8 @@ public static class DeveloperRoutes
                 error = "You must be an approved developer to create and manage bots."
             }, Utilities.JsonSerializerOptions);
         }
-        // owner can only be specified by admins
-        if (payload.owner != null && user.Rank != Rank.Admin)
+        // owner can only be specified by admins and moderators
+        if (payload.owner != null && user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
             return Results.Json(new ListBotsResponse
@@ -84,7 +84,7 @@ public static class DeveloperRoutes
         }
         // Get bots
         // If the user is not an admin, they can only see their own bots
-        var bots = (await Program.Database.ListBots(payload.owner ?? (user.Rank == Rank.Admin ? null : user.Username))).Select(bot => new ListBot
+        var bots = (await Program.Database.ListBots(payload.owner ?? ((user.Rank == Rank.Admin || user.Rank == Rank.Moderator) ? null : user.Username))).Select(bot => new ListBot
         {
             id = (int)bot.Id,
             username = bot.Username,
