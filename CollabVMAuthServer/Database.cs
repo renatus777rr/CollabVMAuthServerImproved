@@ -518,13 +518,17 @@ public class Database
         await cmd.ExecuteNonQueryAsync();
     }
     
-    public async Task ExecuteNonQuery(string query)
+    public async Task<int> ExecuteNonQuery(string query, KeyValuePair<string, object>[]? parameters = null)
     {
         await using var db = new MySqlConnection(connectionString);
         await db.OpenAsync();
         await using var cmd = db.CreateCommand();
         cmd.CommandText = query;
-        await cmd.ExecuteNonQueryAsync();
+        if (parameters != null) foreach (KeyValuePair<string, object> param in parameters)
+        {
+            cmd.Parameters.AddWithValue(param.Key, param.Value);
+        }
+        return await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task SetBanned(string username, bool banned, string? reason)

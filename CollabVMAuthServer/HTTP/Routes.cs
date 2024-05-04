@@ -25,6 +25,15 @@ public static class Routes
 
     private static async Task<IResult> HandleSendReset(HttpContext context)
     {
+        if (!Program.Config.SMTP.Enabled)
+        {
+            context.Response.StatusCode = 400;
+            return Results.Json(new SendResetEmailResponse
+            {
+                success = false,
+                error = "Password reset is not supported by this server. Please contact an administrator."
+            }, Utilities.JsonSerializerOptions);
+        }
         // Check payload
         if (context.Request.ContentType != "application/json")
         {

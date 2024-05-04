@@ -55,6 +55,8 @@ public class Program
         var uc = await Database.CountUsers();
         Utilities.Log(LogLevel.INFO, $"{uc} users in database");
         if (uc == 0) Utilities.Log(LogLevel.WARN, "No users in database, first user will be promoted to admin");
+        // Init cron
+        await Cron.Start();
         // Create mailer
         if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
         {
