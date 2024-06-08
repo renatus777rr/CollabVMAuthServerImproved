@@ -125,4 +125,36 @@ public static class Utilities
     {
         return DateTime.Now > session.LastUsed.AddDays(Program.Config.Accounts.SessionExpiryDays);
     }
+
+    public static async Task<StaffMember?> GetStaffByToken(string token)
+    {
+        if (token.Length == 32)
+        {
+            // User
+            var session = await Program.Database.GetSession(token);
+            if (session == null || Utilities.IsSessionExpired(session)) return null;
+            var user = await Program.Database.GetUser(session.Username);
+            if (user == null) return null;
+            return new StaffMember
+            {
+                Username = user.Username,
+                Rank = user.Rank
+            };
+        }
+        else if (token.Length == 64)
+        {
+            // Bot
+            var bot = await Program.Database.GetBot(token: token);
+            if (bot == null) return null;
+            return new StaffMember
+            {
+                Username = bot.Username,
+                Rank = bot.Rank
+            };
+        }
+        else
+        {
+            return null;
+        }
+    }
 }

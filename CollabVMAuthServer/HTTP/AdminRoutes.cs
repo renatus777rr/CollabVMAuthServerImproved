@@ -53,8 +53,8 @@ public static class AdminRoutes
             }, Utilities.JsonSerializerOptions);
         }
         // Check token
-        var session = await Program.Database.GetSession(payload.session);
-        if (session == null || Utilities.IsSessionExpired(session))
+        var user = await Utilities.GetStaffByToken(payload.session);
+        if (user == null)
         {
             context.Response.StatusCode = 400;
             return Results.Json(new IPBanResponse
@@ -64,8 +64,6 @@ public static class AdminRoutes
             }, Utilities.JsonSerializerOptions);
         }
         // Check rank
-        var user = await Program.Database.GetUser(session.Username)
-                   ?? throw new Exception("Could not lookup user from session");
         if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
@@ -127,23 +125,21 @@ public static class AdminRoutes
             }, Utilities.JsonSerializerOptions);
         }
         // Check token
-        var session = await Program.Database.GetSession(payload.token);
-        if (session == null || Utilities.IsSessionExpired(session))
+        var user = await Utilities.GetStaffByToken(payload.token);
+        if (user == null)
         {
             context.Response.StatusCode = 400;
-            return Results.Json(new BanUserResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Invalid session"
             }, Utilities.JsonSerializerOptions);
         }
         // Check rank
-        var user = await Program.Database.GetUser(session.Username)
-                   ?? throw new Exception("Could not lookup user from session");
         if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
-            return Results.Json(new BanUserResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Insufficient permissions"
@@ -205,23 +201,21 @@ public static class AdminRoutes
             }, Utilities.JsonSerializerOptions);
         }
         // Check token
-        var session = await Program.Database.GetSession(payload.token);
-        if (session == null || Utilities.IsSessionExpired(session))
+        var user = await Utilities.GetStaffByToken(payload.token);
+        if (user == null)
         {
             context.Response.StatusCode = 400;
-            return Results.Json(new AdminUpdateBotResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Invalid session"
             }, Utilities.JsonSerializerOptions);
         }
         // Check rank
-        var user = await Program.Database.GetUser(session.Username)
-                   ?? throw new Exception("Could not lookup user from session");
         if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
-            return Results.Json(new AdminUsersResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Insufficient permissions"
@@ -323,23 +317,21 @@ public static class AdminRoutes
             }, Utilities.JsonSerializerOptions);
         }
         // Check token
-        var session = await Program.Database.GetSession(payload.token);
-        if (session == null || Utilities.IsSessionExpired(session))
+        var user = await Utilities.GetStaffByToken(payload.token);
+        if (user == null)
         {
             context.Response.StatusCode = 400;
-            return Results.Json(new AdminUpdateUserResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Invalid session"
             }, Utilities.JsonSerializerOptions);
         }
         // Check rank
-        var user = await Program.Database.GetUser(session.Username)
-                   ?? throw new Exception("Could not lookup user from session");
-        if (user.Rank != Rank.Admin)
+        if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
-            return Results.Json(new AdminUsersResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Insufficient permissions"
@@ -428,23 +420,21 @@ public static class AdminRoutes
             }, Utilities.JsonSerializerOptions);
         }
         // Check token
-        var session = await Program.Database.GetSession(payload.token);
-        if (session == null || Utilities.IsSessionExpired(session))
+        var user = await Utilities.GetStaffByToken(payload.token);
+        if (user == null)
         {
             context.Response.StatusCode = 400;
-            return Results.Json(new AdminUsersResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Invalid session"
             }, Utilities.JsonSerializerOptions);
         }
         // Check rank
-        var user = await Program.Database.GetUser(session.Username)
-                   ?? throw new Exception("Could not lookup user from session");
         if (user.Rank != Rank.Admin && user.Rank != Rank.Moderator)
         {
             context.Response.StatusCode = 403;
-            return Results.Json(new AdminUsersResponse
+            return Results.Json(new IPBanResponse
             {
                 success = false,
                 error = "Insufficient permissions"
