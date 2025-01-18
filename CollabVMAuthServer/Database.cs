@@ -344,7 +344,7 @@ public class Database
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task<User[]> ListUsers(string? filterUsername = null, string orderBy = "id", bool descending = false)
+    public async Task<User[]> ListUsers(string? filterUsername = null, IPAddress? filterIp = null, string orderBy = "id", bool descending = false)
     {
         await using var db = new MySqlConnection(connectionString);
         await db.OpenAsync();
@@ -354,6 +354,11 @@ public class Database
         {
             where.Add("username LIKE @filterUsername");
             cmd.Parameters.AddWithValue("@filterUsername", filterUsername);
+        }
+        if (filterIp != null)
+        {
+            where.Add("registration_ip = @filterIp");
+            cmd.Parameters.AddWithValue("@filterIp", filterIp.GetAddressBytes());
         }
         cmd.CommandText = $"SELECT * FROM users {(where.Count > 0 ? "WHERE" : "")} {string.Join(" AND ", where)} ORDER BY {orderBy} {(descending ? "DESC" : "ASC")}";
         await using var reader = await cmd.ExecuteReaderAsync();

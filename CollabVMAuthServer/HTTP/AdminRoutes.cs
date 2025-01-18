@@ -460,7 +460,13 @@ public static class AdminRoutes
                 .Replace("_", "!_")
                 .Replace("[", "![") + "%";
         }
-        var users = (await Program.Database.ListUsers(filterUsername, payload.orderBy ?? "id", payload.orderByDescending)).Select(user => new AdminUser
+        IPAddress? filterIp = null;
+        if (payload.filterIp != null)
+        {
+            filterIp = IPAddress.Parse(payload.filterIp);
+        }
+
+        var users = (await Program.Database.ListUsers(filterUsername, filterIp, payload.orderBy ?? "id", payload.orderByDescending)).Select(user => new AdminUser
         {
             id = user.Id,
             username = user.Username,
