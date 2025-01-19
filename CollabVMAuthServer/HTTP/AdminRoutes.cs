@@ -463,7 +463,7 @@ public static class AdminRoutes
         IPAddress? filterIp = null;
         if (payload.filterIp != null)
         {
-            if (!IPAddress.TryParse(payload.filterIp, out var ip)) {
+            if (!IPAddress.TryParse(payload.filterIp, out filterIp)) {
                 context.Response.StatusCode = 400;
                 return Results.Json(new AdminUsersResponse
                 {
@@ -471,8 +471,6 @@ public static class AdminRoutes
                     error = "Invalid filterIp"
                 }, Utilities.JsonSerializerOptions);
             }
-
-            filterIp = IPAddress.Parse(payload.filterIp);
         }
 
         var users = (await Program.Database.ListUsers(filterUsername, filterIp, payload.orderBy ?? "id", payload.orderByDescending)).Select(user => new AdminUser
