@@ -463,6 +463,15 @@ public static class AdminRoutes
         IPAddress? filterIp = null;
         if (payload.filterIp != null)
         {
+            if (!IPAddress.TryParse(payload.filterIp, out var ip)) {
+                context.Response.StatusCode = 400;
+                return Results.Json(new AdminUsersResponse
+                {
+                    success = false,
+                    error = "Invalid filterIp"
+                }, Utilities.JsonSerializerOptions);
+            }
+
             filterIp = IPAddress.Parse(payload.filterIp);
         }
 
