@@ -1,3 +1,5 @@
+using System;
+
 namespace Computernewb.CollabVMAuthServer;
 
 public class Bot
