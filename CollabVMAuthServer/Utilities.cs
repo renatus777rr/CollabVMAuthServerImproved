@@ -1,75 +1,20 @@
 using System;
-using System.Linq;
-using System.Net;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace Computernewb.CollabVMAuthServer;
 
-public enum LogLevel
-{
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
-    FATAL
-}
-
-
 public static class Utilities
 {
-    public static JsonSerializerOptions JsonSerializerOptions => new JsonSerializerOptions
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-    public static void Log(LogLevel level, string msg)
-    {
-#if !DEBUG
-        if (level == LogLevel.DEBUG)
-            return;
-#endif
-        StringBuilder logstr = new StringBuilder();
-        logstr.Append("[");
-        logstr.Append(DateTime.Now.ToString("G"));
-        logstr.Append("] [");
-        switch (level)
-        {
-            case LogLevel.DEBUG:
-                logstr.Append("DEBUG");
-                break;
-            case LogLevel.INFO:
-                logstr.Append("INFO");
-                break;
-            case LogLevel.WARN:
-                logstr.Append("WARN");
-                break;
-            case LogLevel.ERROR:
-                logstr.Append("ERROR");
-                break;
-            case LogLevel.FATAL:
-                logstr.Append("FATAL");
-                break;
-            default:
-                throw new ArgumentException("Invalid log level");
-        }
-        logstr.Append("] ");
-        logstr.Append(msg);
-        switch (level)
-        {
-            case LogLevel.DEBUG:
-            case LogLevel.INFO:
-                Console.WriteLine(logstr.ToString());
-                break;
-            case LogLevel.WARN:
-            case LogLevel.ERROR:
-            case LogLevel.FATAL:
-                Console.Error.WriteLine(logstr.ToString());
-                break;
-        }
+    public static void ConfigureLogging(ILoggingBuilder builder) {
+        builder.ClearProviders();
+        builder.AddConsole();
+        #if DEBUG
+        builder.SetMinimumLevel(LogLevel.Debug);
+        #else
+        builder.SetMinimumLevel(LogLevel.Warning);
+        #endif
     }
 
     public static bool ValidateUsername(string username)
@@ -100,65 +45,5 @@ public static class Utilities
             str.Append(chars[rand.Next(chars.Length)]);
         }
         return str.ToString();
-    }
-
-    public static IPAddress? GetIP(HttpContext ctx)
-    {
-        if (Program.Config.HTTP.UseXForwardedFor)
-        {
-            if (!Program.Config.HTTP.TrustedProxies.Contains(ctx.Connection.RemoteIpAddress.ToString()))
-            {
-                Utilities.Log(LogLevel.WARN,
-                    $"An IP address not allowed to proxy connections ({ctx.Connection.RemoteIpAddress.ToString()}) attempted to connect. This means your server port is exposed to the internet.");
-                return null;
-            }
-
-            if (ctx.Request.Headers["X-Forwarded-For"].Count == 0)
-            {
-                Utilities.Log(LogLevel.WARN, $"Missing X-Forwarded-For header in request from {ctx.Connection.RemoteIpAddress.ToString()}. This is probably a misconfiguration of your reverse proxy.");
-                return null;
-            }
-
-            if (!IPAddress.TryParse(ctx.Request.Headers["X-Forwarded-For"][0], out var ip)) return null;
-            return ip;
-        }
-        else return ctx.Connection.RemoteIpAddress;
-    }
-
-    public static bool IsSessionExpired(Session session)
-    {
-        return DateTime.Now > session.LastUsed.AddDays(Program.Config.Accounts.SessionExpiryDays);
-    }
-
-    public static async Task<StaffMember?> GetStaffByToken(string token)
-    {
-        if (token.Length == 32)
-        {
-            // User
-            var session = await Program.Database.GetSession(token);
-            if (session == null || Utilities.IsSessionExpired(session)) return null;
-            var user = await Program.Database.GetUser(session.Username);
-            if (user == null) return null;
-            return new StaffMember
-            {
-                Username = user.Username,
-                Rank = user.Rank
-            };
-        }
-        else if (token.Length == 64)
-        {
-            // Bot
-            var bot = await Program.Database.GetBot(token: token);
-            if (bot == null) return null;
-            return new StaffMember
-            {
-                Username = bot.Username,
-                Rank = bot.Rank
-            };
-        }
-        else
-        {
-            return null;
-        }
     }
 }

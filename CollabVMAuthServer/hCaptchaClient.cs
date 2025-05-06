@@ -36,8 +36,8 @@ public class hCaptchaClient
 public class hCaptchaResponse
 {
     public bool success { get; set; }
-    public string challenge_ts { get; set; }
-    public string hostname { get; set; }
+    public string? challenge_ts { get; set; }
+    public string? hostname { get; set; }
     public bool? credit { get; set; }
     [JsonPropertyName("error-codes")]
     public string[]? error_codes { get; set; }

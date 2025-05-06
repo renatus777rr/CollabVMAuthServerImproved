@@ -1,9 +1,7 @@
 namespace Computernewb.CollabVMAuthServer.HTTP.Responses;
 
-public class AdminUsersResponse
+public class AdminUsersResponse : ApiResponse
 {
-    public bool success { get; set; }
-    public string? error { get; set; }
     public int? totalPageCount { get; set; } = null;
     public AdminUser[]? users { get; set; }
 }
@@ -11,13 +9,13 @@ public class AdminUsersResponse
 public class AdminUser
 {
     public uint id { get; set; }
-    public string username { get; set; }
-    public string email { get; set; }
-    public int rank { get; set; }
+    public required string username { get; set; }
+    public required string email { get; set; }
+    public required uint rank { get; set; }
     public bool banned { get; set; }
-    public string banReason { get; set; }
-    public string dateOfBirth { get; set; }
-    public string dateJoined { get; set; }
-    public string registrationIp { get; set; }
+    public required string banReason { get; set; }
+    public required string dateOfBirth { get; set; }
+    public required string dateJoined { get; set; }
+    public required string registrationIp { get; set; }
     public bool developer { get; set; }
 }

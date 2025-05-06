@@ -16,8 +16,16 @@
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
       <PackageReference Include="Isopoh.Cryptography.Argon2" Version="2.0.0" />
       <PackageReference Include="MailKit" Version="4.12.0" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.15">
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        <PrivateAssets>all</PrivateAssets>
+      </PackageReference>
+      <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+      <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" />
       <PackageReference Include="MySqlConnector" Version="2.4.0" />
+      <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.3" />
       <PackageReference Include="Samboy063.Tomlet" Version="6.0.0" />
+      <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     </ItemGroup>
 
 </Project>

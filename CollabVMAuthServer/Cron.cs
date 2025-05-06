@@ -1,15 +1,26 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using Computernewb.CollabVMAuthServer.Database;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Timer = System.Timers.Timer;
 
 namespace Computernewb.CollabVMAuthServer;
 
-public static class Cron
+public class Cron
 {
-    private static Timer timer = new Timer();
+    private readonly DbContextOptions<CollabVMAuthDbContext> _dbContextOptions;
+    private readonly ILogger _logger;
+    public Cron(DbContextOptions<CollabVMAuthDbContext> dbContextOptions) {
+        this._dbContextOptions = dbContextOptions;
+        this._logger = LoggerFactory.Create(Utilities.ConfigureLogging).CreateLogger<Cron>();
+    }
+
+    private Timer timer = new Timer();
     
-    public static async Task Start()
+    public async Task Start()
     {
         #if DEBUG
         timer.Interval = 1000 * 60; // 60 seconds
@@ -21,41 +32,37 @@ public static class Cron
         timer.Start();
     }
     
-    public static void Stop()
+    public void Stop()
     {
         timer.Stop();
         timer.Interval = 1000 * 60 * 10;
     }
     
-    public static async Task RunAll()
+    public async Task RunAll()
     {
-        Utilities.Log(LogLevel.INFO, "Running all cron jobs");
+       _logger.LogDebug("Running all cron jobs");
         var t = new List<Task>();
         t.Add(PurgeOldSessions());
-        if (Program.Config.Registration.EmailVerificationRequired) t.Add(ExpireAccounts());
+        if (Program.Config.Registration!.EmailVerificationRequired) t.Add(ExpireAccounts());
         await Task.WhenAll(t);
-        Utilities.Log(LogLevel.INFO, "Finished running all cron jobs");
+        _logger.LogDebug("Finished running all cron jobs");
     }
     // Expire unverified accounts after 2 days. Don't purge if the code is null
-    public static async Task ExpireAccounts()
+    public async Task ExpireAccounts()
     {
-        Utilities.Log(LogLevel.INFO, "Purging unverified accounts");
-        var minDate = DateTime.UtcNow - TimeSpan.FromDays(2);
-        int a = await Program.Database.ExecuteNonQuery("DELETE FROM users WHERE email_verified = 0 AND created < @minDate AND email_verification_code IS NOT NULL", 
-        [
-            new KeyValuePair<string, object>("minDate", minDate)
-        ]);
-        Utilities.Log(LogLevel.INFO, $"Purged {a} unverified accounts");
+        _logger.LogDebug("Purging unverified accounts");
+        using var dbContext = new CollabVMAuthDbContext(_dbContextOptions);
+        dbContext.Users.RemoveRange(dbContext.Users.Where(u => (!u.EmailVerified) && u.EmailVerificationCode != null && (u.Created < DateTime.UtcNow.AddDays(-2))));
+        var a = await dbContext.SaveChangesAsync();
+        _logger.LogInformation("Purged {a} unverified accounts", a);
     }
     
-    public static async Task PurgeOldSessions()
+    public async Task PurgeOldSessions()
     {
-        Utilities.Log(LogLevel.INFO, "Purging old sessions");
-        var expiryDate = DateTime.UtcNow - TimeSpan.FromDays(Program.Config.Accounts.SessionExpiryDays);
-        int a = await Program.Database.ExecuteNonQuery("DELETE FROM sessions WHERE last_used < @expiryDate", 
-        [
-            new KeyValuePair<string, object>("expiryDate", expiryDate)
-        ]);
-        Utilities.Log(LogLevel.INFO, $"Purged {a} old sessions");
+        _logger.LogDebug("Purging old sessions");
+        using var dbContext = new CollabVMAuthDbContext(_dbContextOptions);
+        dbContext.Sessions.RemoveRange(dbContext.Sessions.Where(s => s.LastUsed < DateTime.UtcNow - TimeSpan.FromDays(Program.Config.Accounts!.SessionExpiryDays)));
+        var a = await dbContext.SaveChangesAsync();
+        _logger.LogInformation("Purged {a} old sessions", a);
     }
 }

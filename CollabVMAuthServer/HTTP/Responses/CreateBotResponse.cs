@@ -1,8 +1,6 @@
 namespace Computernewb.CollabVMAuthServer.HTTP.Responses;
 
-public class CreateBotResponse
+public class CreateBotResponse : ApiResponse
 {
-    public bool success { get; set; }
-    public string? error { get; set; }
     public string? token { get; set; }
 }

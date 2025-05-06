@@ -1,7 +1,6 @@
 namespace Computernewb.CollabVMAuthServer.HTTP.Responses;
 
-public class BanUserResponse
-{
+public class ApiResponse {
     public bool success { get; set; }
     public string? error { get; set; }
 }
