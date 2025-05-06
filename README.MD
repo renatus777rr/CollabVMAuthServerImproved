@@ -7,12 +7,22 @@ This is the authentication server for CollabVM. It is used alongside CollabVM se
 - An SMTP server if you want email verification and password reset
 - An hCaptcha account if you want to use hCaptcha to prevent bots
 
-## Running the server
+## Building the server
 1. Clone the source code: `git clone https://git.computernewb.com/collabvm/CollabVMAuthServer --recursive`
 2. Copy `config.example.toml` to `config.toml` and edit it to your liking
 3. Install dependencies: `dotnet restore`
 4. Build the server: `dotnet publish CollabVMAuthServer/CollabVMAuthServer.csproj -c Release --os linux -p:PublishReadyToRun=true`
-5. Run the server: `./CollabVMAuthServer/bin/Release/net8.0/linux-x64/publish/CollabVMAuthServer`
+
+## Run Database Migrations
+You must do this the first time you run the server, and every time the database schema is updated (you will receive an error otherwise)
+```
+./CollabVMAuthServer/bin/Release/net8.0/linux-x64/publish/CollabVMAuthServer migrate-db
+```
+
+## Running the server
+```
+./CollabVMAuthServer/bin/Release/net8.0/linux-x64/publish/CollabVMAuthServer
+```
 
 ## Setting up NGINX
 You'll want to set up NGINX as a reverse proxy to the authentication server to add HTTPS support. Running the server over plain HTTP is strongly discouraged. Here is an example NGINX configuration:
