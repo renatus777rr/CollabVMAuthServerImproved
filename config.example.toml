@@ -38,7 +38,7 @@ TrustedProxies = ["127.0.0.1"]
 Host = "127.0.0.1"
 Username = "root"
 Password = "hunter2"
-Database = "collabvm_auth"
+Database = "AuthDatabase"
 
 [SMTP]
 # If true, E-Mail support will be enabled.
