@@ -12,7 +12,10 @@ This is the authentication server for CollabVM. It is used alongside CollabVM se
 2. Copy `config.example.toml` to `config.toml` and edit it to your liking
 3. Install dependencies: `dotnet restore`
 4. Build the server: `dotnet publish CollabVMAuthServer/CollabVMAuthServer.csproj -c Release --os linux -p:PublishReadyToRun=true`
-
+## Create database
+```
+CREATE DATABASE AuthDatabase;
+```
 ## Run Database Migrations
 You must do this the first time you run the server, and every time the database schema is updated (you will receive an error otherwise)
 ```
