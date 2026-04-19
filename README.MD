@@ -8,7 +8,7 @@ This is the authentication server for CollabVM. It is used alongside CollabVM se
 - An hCaptcha account if you want to use hCaptcha to prevent bots
 
 ## Building the server
-1. Clone the source code: `git clone https://git.computernewb.com/collabvm/CollabVMAuthServer --recursive`
+1. Clone the source code: `git clone https://github.com/renatus777rr/CollabVMAuthServerImproved --recursive`
 2. Copy `config.example.toml` to `config.toml` and edit it to your liking
 3. Install dependencies: `dotnet restore`
 4. Build the server: `dotnet publish CollabVMAuthServer/CollabVMAuthServer.csproj -c Release --os linux -p:PublishReadyToRun=true`
