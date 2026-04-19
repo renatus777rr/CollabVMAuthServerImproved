@@ -165,9 +165,12 @@ public class Program
         });
 
 
-        builder.WebHost.UseUrls(
-            $"http://{Config.HTTP.Host ?? "127.0.0.1"}:{Config.HTTP.Port}"
-        );
+        builder.WebHost.UseKestrel(serverOptions =>
+        {
+            string host = Config.HTTP.Host ?? "127.0.0.1";
+            int port = Config.HTTP.Port;
+            serverOptions.Listen(IPAddress.Parse(host), port);
+        });
 
         builder.Services.AddCors();
         var app = builder.Build();
