@@ -1,4 +1,3 @@
-// Program.cs
 using System;
 using System.CommandLine;
 using System.IO;
@@ -14,20 +13,22 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Computernewb.CollabVMAuthServer;
 
 public class Program
 {
-    public static IConfig Config { get; private set; } = null!;
+    #pragma warning disable CS8618
+    public static IConfig Config { get; private set; }
     public static hCaptchaClient? hCaptcha { get; private set; }
     public static Mailer? Mailer { get; private set; }
-    public static string[] BannedPasswords { get; private set; } = null!;
+    public static string[] BannedPasswords { get; set; }
+    #pragma warning restore CS8618
     public static readonly Random Random = new();
 
-    private static readonly ILogger<Program> _logger = LoggerFactory.Create(Utilities.ConfigureLogging).CreateLogger<Program>();
+    private static readonly ILogger _logger
+        = LoggerFactory.Create(Utilities.ConfigureLogging).CreateLogger<Program>();
 
     public static async Task<int> Main(string[] args)
     {
@@ -37,9 +38,10 @@ public class Program
         var rootCommand = new RootCommand("CollabVM Authentication Server");
 
         var configPathOption = new Option<string>(
-            "--config-path",
-            () => "./config.toml",
-            "Configuration file to use");
+            name: "--config-path",
+            description: "Configuration file to use",
+            getDefaultValue: () => "./config.toml"
+        );
         rootCommand.Add(configPathOption);
 
         var migrateDbCommand = new Command("migrate-db", "Runs all pending database migrations");
@@ -51,62 +53,57 @@ public class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    private static async Task<int> MigrateDatabase(AuthServerContext context)
+    public static async Task<int> MigrateDatabase(AuthServerContext context)
     {
         _logger.LogInformation("Running database migrations");
-
         var dbOptions = context.Config.MySQL.Configure().Options;
-        await using var db = new CollabVMAuthDbContext(dbOptions);
+        var db = new CollabVMAuthDbContext(dbOptions); // calls .Options here
 
         await LegacyDbMigrator.CheckAndMigrate(db);
 
-        var pendingCount = await db.Database.GetPendingMigrationsAsync();
-        _logger.LogInformation("Applying {Count} migrations", pendingCount.Count());
-
+        _logger.LogInformation("Applying {cnt} migrations now...", (await db.Database.GetPendingMigrationsAsync()).Count());
         await db.Database.MigrateAsync();
-
-        _logger.LogInformation("Finished migrations");
+        _logger.LogInformation("Finished migrations.");
         return 0;
     }
 
-    private static async Task<int> RunAuthServer(AuthServerContext context)
+    public static async Task<int> RunAuthServer(AuthServerContext context)
     {
-        var assembly = Assembly.GetExecutingAssembly();
-        var version = assembly.GetName().Version!;
-        _logger.LogInformation("CollabVM Authentication Server v{Version} starting up", version.ToString(3));
+        var ver = Assembly.GetExecutingAssembly().GetName().Version;
+        _logger.LogInformation("CollabVM Authentication Server v{major}.{minor}.{revision} starting up",
+            ver!.Major, ver.Minor, ver.Revision);
 
         Config = context.Config;
 
-        var dbOptionsBuilder = Config.MySQL.Configure();
+        // Configure DB options once (assuming MySQLConfig.Configure returns DbContextOptionsBuilder)
+        var dbOptionsBuilder = context.Config.MySQL.Configure();
         var dbOptions = dbOptionsBuilder.Options;
-        await using var db = new CollabVMAuthDbContext(dbOptions);
+        var db = new CollabVMAuthDbContext(dbOptions);
 
-        var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
-        if (pendingMigrations.Any())
+        if ((await db.Database.GetPendingMigrationsAsync()).Any())
         {
-            _logger.LogCritical("Database schema out of date. Please run 'migrate-db'.");
+            _logger.LogCritical("Database schema out of date. Please run migrations.");
             return 1;
         }
 
-        var userCount = await db.Users.CountAsync();
-        _logger.LogInformation("Found {UserCount} users in database", userCount);
-        if (userCount == 0)
-            _logger.LogWarning("No users found. First user will be promoted to admin");
+        var uc = await db.Users.CountAsync();
+        _logger.LogInformation("{uc} users in database", uc);
+        if (uc == 0)
+            _logger.LogWarning("No users in database, first user will be promoted to admin");
 
         var cron = new Cron(dbOptions);
         await cron.Start();
 
         if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
         {
-            _logger.LogCritical("Email verification required but SMTP disabled");
+            _logger.LogCritical("Email verification is required but SMTP is disabled");
             return 1;
         }
-
         Mailer = Config.SMTP.Enabled ? new Mailer(Config.SMTP) : null;
 
         if (Config.hCaptcha.Enabled)
         {
-            hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret, Config.hCaptcha.SiteKey);
+            hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret!, Config.hCaptcha.SiteKey!);
             _logger.LogInformation("hCaptcha enabled");
         }
         else
@@ -119,19 +116,20 @@ public class Program
         var builder = WebApplication.CreateBuilder();
         Utilities.ConfigureLogging(builder.Logging);
 
-        builder.Services.AddControllers()
-            .AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.DefaultIgnoreCondition = 
-                    System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
-            });
+        builder.Services.AddControllers().AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        });
 
-        builder.Services.AddDbContext<CollabVMAuthDbContext>((serviceProvider, options) => Config.MySQL.Configure(options).Options);
+        // Correct pattern: Configure returns DbContextOptionsBuilder, we don‘t call .Options here
+        builder.Services.AddDbContext<CollabVMAuthDbContext>((services, options) =>
+            context.Config.MySQL.Configure(options));
 
+        // Configure forwarded headers
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            foreach (var proxy in Config.HTTP.TrustedProxies)
+            foreach (string proxy in context.Config.HTTP.TrustedProxies!)
             {
                 options.KnownProxies.Add(IPAddress.Parse(proxy));
             }
@@ -147,48 +145,46 @@ public class Program
             options.DbContextOptions = dbOptions;
         });
 
-        builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthorizationMiddlewareResultHandler>();
+        builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthenticationMiddlewareResultHandler>();
 
-        var authorizationBuilder = builder.Services.AddAuthorizationBuilder();
-        authorizationBuilder.AddPolicy("User", policy => policy
-            .RequireAuthenticatedUser()
-            .RequireClaim("type", "user"));
-        authorizationBuilder.AddPolicy("Staff", policy => policy
-            .RequireAuthenticatedUser()
-            .RequireClaim("rank", "2", "3"));
-        authorizationBuilder.AddPolicy("Developer", policy => policy
-            .RequireAuthenticatedUser()
-            .RequireClaim("developer", "1"));
-
-        builder.Host.UseKestrel(serverOptions =>
+        var authorization = builder.Services.AddAuthorizationBuilder();
+        authorization.AddPolicy("User", policy =>
         {
-            serverOptions.Listen(IPAddress.Parse(Config.HTTP.Host), Config.HTTP.Port);
+            policy.RequireAuthenticatedUser();
+            policy.RequireClaim("type", "user");
+        });
+        authorization.AddPolicy("Staff", policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.RequireClaim("rank", "2", "3");
+        });
+        authorization.AddPolicy("Developer", policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.RequireClaim("developer", "1");
+        });
+
+
+        builder.WebHost.ConfigureKestrel(serverOptions =>
+        {
+            string host = Config.HTTP.Host ?? "127.0.0.1";
+            int port = Config.HTTP.Port;
+            serverOptions.Listen(IPAddress.Parse(host), port);
         });
 
         builder.Services.AddCors();
-
         var app = builder.Build();
 
-        if (Config.HTTP.UseXForwardedFor)
-        {
+        if (context.Config.HTTP.UseXForwardedFor)
             app.UseForwardedHeaders();
-        }
-
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseDeveloperExceptionPage();
-        }
 
         app.UseRouting();
-
         app.UseCors(cors => cors
             .AllowAnyOrigin()
             .AllowAnyMethod()
             .AllowAnyHeader());
-
         app.UseAuthentication();
         app.UseAuthorization();
-
         app.MapControllers();
 
         await app.RunAsync();
