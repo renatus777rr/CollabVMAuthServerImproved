@@ -1,10 +1,10 @@
+// IConfig.cs
 using System.IO;
 using Computernewb.CollabVMAuthServer.Database;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using Tomlet;
-using Tomlet.Attributes;
 
 namespace Computernewb.CollabVMAuthServer;
 
@@ -19,7 +19,6 @@ public interface IConfig
     hCaptchaConfig hCaptcha { get; }
 }
 
-[TomlAutoDefaultedNestedProperties]
 public class Config : IConfig
 {
     public RegistrationConfig Registration { get; set; } = new();
@@ -78,12 +77,10 @@ public class MySQLConfig
         Database = Database
     }.ConnectionString;
 
-    public DbContextOptionsBuilder<CollabVMAuthDbContext> Configure(IServiceProvider? serviceProvider = null)
+    public DbContextOptionsBuilder<CollabVMAuthDbContext> Configure(DbContextOptionsBuilder<CollabVMAuthDbContext>? builder = null)
     {
-        var builder = serviceProvider?.GetRequiredService<DbContextOptionsBuilder<CollabVMAuthDbContext>>() 
-            ?? new DbContextOptionsBuilder<CollabVMAuthDbContext>();
-        
-        return builder.UseMySQL(ConnectionString, ServerVersion.AutoDetect(ConnectionString));
+        return (builder ?? new DbContextOptionsBuilder<CollabVMAuthDbContext>())
+            .UseMySQL(ConnectionString, ServerVersion.AutoDetect(ConnectionString));
     }
 }
 
