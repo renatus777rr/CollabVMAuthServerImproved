@@ -165,12 +165,9 @@ public class Program
         });
 
 
-        builder.WebHost.ConfigureKestrel(serverOptions =>
-        {
-            string host = Config.HTTP.Host ?? "127.0.0.1";
-            int port = Config.HTTP.Port;
-            serverOptions.Listen(IPAddress.Parse(host), port);
-        });
+        builder.WebHost.UseUrls(
+            $"http://{Config.HTTP.Host ?? "127.0.0.1"}:{Config.HTTP.Port}"
+        );
 
         builder.Services.AddCors();
         var app = builder.Build();
