@@ -487,7 +487,7 @@ public class AuthenticationApiController : ControllerBase
             await _dbContext.SaveChangesAsync();
         }
         // Perform sign-in
-        var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity([new("id", user.Id.ToString())]));
+        var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim> { new("id", user.Id.ToString()) }, "CollabVM"));
         await HttpContext.SignInAsync(userPrincipal);
         var token = userPrincipal.FindFirstValue("token")
             ?? throw new InvalidOperationException("Sign in handler did not add token");
