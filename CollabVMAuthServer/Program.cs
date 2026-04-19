@@ -1,5 +1,6 @@
 using System;
 using System.CommandLine;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -23,7 +24,7 @@ public class Program
     public static IConfig Config { get; private set; }
     public static hCaptchaClient? hCaptcha { get; private set; }
     public static Mailer? Mailer { get; private set; }
-    public static string[] BannedPasswords { get; set; }
+    public static HashSet<string> BannedPasswords { get; private set; }
     #pragma warning restore CS8618
     public static readonly Random Random = new();
 
@@ -56,7 +57,8 @@ public class Program
     public static async Task<int> MigrateDatabase(AuthServerContext context)
     {
         _logger.LogInformation("Running database migrations");
-        var dbOptions = context.Config.MySQL.Configure().Options;
+        var mySql = context.Config.MySQL ?? throw new InvalidOperationException("Missing MySQL configuration");
+        var dbOptions = mySql.Configure().Options;
         var db = new CollabVMAuthDbContext(dbOptions); // calls .Options here
 
         await LegacyDbMigrator.CheckAndMigrate(db);
@@ -74,8 +76,13 @@ public static async Task<int> RunAuthServer(AuthServerContext context)
         ver!.Major, ver.Minor, ver.Revision);
 
     Config = context.Config;
+    var mySql = Config.MySQL ?? throw new InvalidOperationException("Missing MySQL configuration");
+    var smtp = Config.SMTP ?? throw new InvalidOperationException("Missing SMTP configuration");
+    var registration = Config.Registration ?? throw new InvalidOperationException("Missing registration configuration");
+    var captcha = Config.hCaptcha ?? throw new InvalidOperationException("Missing hCaptcha configuration");
+    var http = Config.HTTP ?? throw new InvalidOperationException("Missing HTTP configuration");
 
-    var dbOptionsBuilder = context.Config.MySQL.Configure();
+    var dbOptionsBuilder = mySql.Configure();
     var dbOptions = dbOptionsBuilder.Options;
     var db = new CollabVMAuthDbContext(dbOptions);
 
@@ -93,16 +100,16 @@ public static async Task<int> RunAuthServer(AuthServerContext context)
     var cron = new Cron(dbOptions);
     await cron.Start();
 
-    if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
+    if (!smtp.Enabled && registration.EmailVerificationRequired)
     {
         _logger.LogCritical("Email verification is required but SMTP is disabled");
         return 1;
     }
-    Mailer = Config.SMTP.Enabled ? new Mailer(Config.SMTP) : null;
+    Mailer = smtp.Enabled ? new Mailer(smtp) : null;
 
-    if (Config.hCaptcha.Enabled)
+    if (captcha.Enabled)
     {
-        hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret!, Config.hCaptcha.SiteKey!);
+        hCaptcha = new hCaptchaClient(captcha.Secret!, captcha.SiteKey!);
         _logger.LogInformation("hCaptcha enabled");
     }
     else
@@ -110,7 +117,14 @@ public static async Task<int> RunAuthServer(AuthServerContext context)
         _logger.LogInformation("hCaptcha disabled");
     }
 
-    BannedPasswords = await File.ReadAllLinesAsync("rockyou.txt");
+    var passwordListPath = Path.Combine(AppContext.BaseDirectory, "rockyou.txt");
+    if (!File.Exists(passwordListPath))
+    {
+        passwordListPath = "rockyou.txt";
+    }
+    BannedPasswords = (await File.ReadAllLinesAsync(passwordListPath))
+        .Where(password => !string.IsNullOrWhiteSpace(password))
+        .ToHashSet(StringComparer.Ordinal);
 
     var builder = WebApplication.CreateBuilder();
     Utilities.ConfigureLogging(builder.Logging);
@@ -121,12 +135,12 @@ public static async Task<int> RunAuthServer(AuthServerContext context)
     });
 
     builder.Services.AddDbContext<CollabVMAuthDbContext>((services, options) =>
-        context.Config.MySQL.Configure(options));
+        mySql.Configure(options));
 
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        foreach (string proxy in context.Config.HTTP.TrustedProxies!)
+        foreach (string proxy in http.TrustedProxies!)
         {
             options.KnownProxies.Add(IPAddress.Parse(proxy));
         }
@@ -166,9 +180,9 @@ public static async Task<int> RunAuthServer(AuthServerContext context)
     var app = builder.Build();
 
     app.Urls.Clear();
-    app.Urls.Add($"http://{Config.HTTP.Host ?? "127.0.0.1"}:{Config.HTTP.Port}");
+    app.Urls.Add($"http://{http.Host ?? "127.0.0.1"}:{http.Port}");
 
-    if (context.Config.HTTP.UseXForwardedFor)
+    if (http.UseXForwardedFor)
         app.UseForwardedHeaders();
 
     app.UseRouting();

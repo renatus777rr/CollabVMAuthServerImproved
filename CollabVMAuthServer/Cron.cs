@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Computernewb.CollabVMAuthServer.Database;
 using Microsoft.EntityFrameworkCore;
@@ -13,41 +14,59 @@ public class Cron
 {
     private readonly DbContextOptions<CollabVMAuthDbContext> _dbContextOptions;
     private readonly ILogger _logger;
+    private readonly Timer _timer = new();
+    private readonly SemaphoreSlim _runLock = new(1, 1);
+
     public Cron(DbContextOptions<CollabVMAuthDbContext> dbContextOptions) {
         this._dbContextOptions = dbContextOptions;
         this._logger = LoggerFactory.Create(Utilities.ConfigureLogging).CreateLogger<Cron>();
     }
-
-    private Timer timer = new Timer();
     
     public async Task Start()
     {
-        #if DEBUG
-        timer.Interval = 1000 * 60; // 60 seconds
-        #else
-        timer.Interval = 1000 * 60 * 10; // 10 minutes
-        #endif
-        timer.Elapsed += async (sender, e) => await RunAll();
+        _timer.Interval =
+#if DEBUG
+            1000 * 60;
+#else
+            1000 * 60 * 10;
+#endif
+        _timer.AutoReset = true;
+        _timer.Elapsed += async (_, _) => await RunAll();
         await RunAll();
-        timer.Start();
+        _timer.Start();
     }
     
     public void Stop()
     {
-        timer.Stop();
-        timer.Interval = 1000 * 60 * 10;
+        _timer.Stop();
+        _timer.Interval = 1000 * 60 * 10;
     }
     
     public async Task RunAll()
     {
-       _logger.LogDebug("Running all cron jobs");
-        var t = new List<Task>();
-        t.Add(PurgeOldSessions());
-        if (Program.Config.Registration!.EmailVerificationRequired) t.Add(ExpireAccounts());
-        await Task.WhenAll(t);
-        _logger.LogDebug("Finished running all cron jobs");
+        if (!await _runLock.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
+            _logger.LogDebug("Running all cron jobs");
+            var jobs = new List<Task> { PurgeOldSessions() };
+            if (Program.Config.Registration!.EmailVerificationRequired)
+            {
+                jobs.Add(ExpireAccounts());
+            }
+
+            await Task.WhenAll(jobs);
+            _logger.LogDebug("Finished running all cron jobs");
+        }
+        finally
+        {
+            _runLock.Release();
+        }
     }
-    // Expire unverified accounts after 2 days. Don't purge if the code is null
+
     public async Task ExpireAccounts()
     {
         _logger.LogDebug("Purging unverified accounts");

@@ -39,7 +39,9 @@ public class DeveloperApiController : ControllerBase {
         }
         // Get bots
         // If the user is not an admin, they can only see their own bots
-        IQueryable<Bot> result = _dbContext.Bots.Include(b => b.OwnerNavigation);
+        IQueryable<Bot> result = _dbContext.Bots
+            .AsNoTracking()
+            .Include(b => b.OwnerNavigation);
 
         if (payload.owner != null) {
             result = result.Where(b => b.OwnerNavigation.Username == payload.owner);
@@ -47,6 +49,7 @@ public class DeveloperApiController : ControllerBase {
             result = result.Where(b => b.OwnerNavigation.Username == User.FindFirstValue("username")!);
         }
 
+        var totalCount = await result.CountAsync();
         result = result.Skip((payload.page - 1) * payload.resultsPerPage).Take(payload.resultsPerPage);
 
         var bots = await result.Select(bot => new ListBot
@@ -62,7 +65,7 @@ public class DeveloperApiController : ControllerBase {
         return Results.Json(new ListBotsResponse
         {
             success = true,
-            totalPageCount = (int)Math.Ceiling(await _dbContext.Bots.CountAsync() / (double)payload.resultsPerPage),
+            totalPageCount = (int)Math.Ceiling(totalCount / (double)payload.resultsPerPage),
             bots = bots
         });
     }

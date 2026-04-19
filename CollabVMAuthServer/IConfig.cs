@@ -23,6 +23,15 @@ public class IConfig
         var configRaw = File.ReadAllText(configPath);
         // Parse toml
         var config = TomletMain.To<IConfig>(configRaw);
+        config.Registration ??= new RegistrationConfig();
+        config.Accounts ??= new AccountConfig();
+        config.CollabVM ??= new CollabVMConfig();
+        config.HTTP ??= new HTTPConfig();
+        config.MySQL ??= new MySQLConfig();
+        config.SMTP ??= new SMTPConfig();
+        config.hCaptcha ??= new hCaptchaConfig();
+        config.Registration.AllowedEmailDomains ??= [];
+        config.HTTP.TrustedProxies ??= [];
         return config;
     }
     
@@ -32,7 +41,7 @@ public class RegistrationConfig
 {
     public bool EmailVerificationRequired { get; set; }
     public bool EmailDomainWhitelist { get; set; }
-    public string[]? AllowedEmailDomains { get; set; }
+    public string[]? AllowedEmailDomains { get; set; } = [];
 }
 
 public class AccountConfig
@@ -51,7 +60,7 @@ public class HTTPConfig
     public string? Host { get; set; }
     public int Port { get; set; }
     public bool UseXForwardedFor { get; set; }
-    public string[]? TrustedProxies { get; set; }
+    public string[]? TrustedProxies { get; set; } = [];
 }
 public class MySQLConfig
 {

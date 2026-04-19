@@ -211,7 +211,7 @@ public class AuthenticationApiController : ControllerBase
                 });
             }
             // Check if E-Mail is in use
-            if (_dbContext.Users.Any(u => u.Email == payload.email))
+            if (await _dbContext.Users.AnyAsync(u => u.Email == payload.email))
             {
                 HttpContext.Response.StatusCode = 400;
                 return Results.Json(new RegisterResponse
@@ -347,7 +347,7 @@ public class AuthenticationApiController : ControllerBase
                 });
             }
             // Check if session is expired
-            if (DateTime.Now > session.LastUsed.AddDays(Program.Config.Accounts!.SessionExpiryDays))
+            if (DateTime.UtcNow > session.LastUsed.AddDays(Program.Config.Accounts!.SessionExpiryDays))
             {
                 return Results.Json(new JoinResponse
                 {
@@ -672,7 +672,7 @@ public class AuthenticationApiController : ControllerBase
             });
         }
 
-        if (dob.AddYears(13) > DateOnly.FromDateTime(DateTime.Now))
+        if (dob.AddYears(13) > DateOnly.FromDateTime(DateTime.UtcNow))
         {
             HttpContext.Response.StatusCode = 400;
             await _dbContext.IpBans.AddAsync(new IpBan {
@@ -687,7 +687,6 @@ public class AuthenticationApiController : ControllerBase
                 error = "You are not old enough to use CollabVM."
             });
         }
-        // theres no fucking chance
         if (dob < new DateOnly(1954, 1, 1))
         {
             HttpContext.Response.StatusCode = 400;

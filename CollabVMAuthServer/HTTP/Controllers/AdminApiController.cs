@@ -29,13 +29,26 @@ public class AdminApiController : ControllerBase
     [Authorize("Staff")]
     public async Task<IResult> HandleIPBan(IPBanPayload payload)
     {
-        var ip = IPAddress.Parse(payload.ip).GetAddressBytes();
+        if (!IPAddress.TryParse(payload.ip, out var parsedIp))
+        {
+            return Results.Json(new ApiResponse
+            {
+                success = false,
+                error = "Invalid IP address."
+            }, statusCode: 400);
+        }
+
+        var ip = parsedIp.GetAddressBytes();
         // Find or create ban
         var ban = await _dbContext.IpBans.FirstOrDefaultAsync(b => b.Ip == ip);
 
         if (payload.banned)
         {
-            ban ??= new IpBan { Ip = ip };
+            if (ban == null)
+            {
+                ban = new IpBan { Ip = ip };
+                await _dbContext.IpBans.AddAsync(ban);
+            }
             ban.Reason = payload.reason;
             ban.BannedBy = HttpContext.User.FindFirstValue("username");
             ban.BannedAt = DateTime.UtcNow;
@@ -240,7 +253,7 @@ public class AdminApiController : ControllerBase
         }
 
         // Get users
-        IQueryable<User> result = _dbContext.Users;
+        IQueryable<User> result = _dbContext.Users.AsNoTracking();
 
         if (payload.filterUsername != null) {
             result = result.Where(u => u.Username.Contains(payload.filterUsername));
@@ -282,6 +295,7 @@ public class AdminApiController : ControllerBase
                 break;
         }
 
+        var totalCount = await result.CountAsync();
         result = result.Skip((payload.page - 1) * payload.resultsPerPage).Take(payload.resultsPerPage);
         
         var users = await result.Select(user => new AdminUser
@@ -302,7 +316,7 @@ public class AdminApiController : ControllerBase
         {
             success = true,
             users = users,
-            totalPageCount = (int)Math.Ceiling(await _dbContext.Users.CountAsync() / (double)payload.resultsPerPage)
+            totalPageCount = (int)Math.Ceiling(totalCount / (double)payload.resultsPerPage)
         });
     }
 }

@@ -1,12 +1,20 @@
 using System;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
 namespace Computernewb.CollabVMAuthServer;
 
 public static class Utilities
 {
+    private static readonly Regex UsernameRegex = new("^[a-zA-Z0-9 \\-_\\.]+$", RegexOptions.Compiled);
+    private static readonly Regex LowercaseRegex = new("[a-z]", RegexOptions.Compiled);
+    private static readonly Regex UppercaseRegex = new("[A-Z]", RegexOptions.Compiled);
+    private static readonly Regex SymbolRegex = new("[!@#$%^&*()\\-_=+\\\\|\\[\\];:'\\\",<.>/?`~]", RegexOptions.Compiled);
+    private static readonly Regex NumberRegex = new("[0-9]", RegexOptions.Compiled);
+    private const string RandomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
     public static void ConfigureLogging(ILoggingBuilder builder) {
         builder.ClearProviders();
         builder.AddConsole();
@@ -23,26 +31,24 @@ public static class Utilities
                username.Length <= 20 &&
                username[0] != ' ' &&
                username[^1] != ' ' &&
-               new Regex("^[a-zA-Z0-9 \\-_\\.]+$").IsMatch(username);
+               UsernameRegex.IsMatch(username);
     }
 
     public static bool ValidatePassword(string password)
     {
         return password.Length > 8 &&
-               new Regex("[a-z]").IsMatch(password) &&
-               new Regex("[A-Z]").IsMatch(password) &&
-               new Regex("[!@#$%^&*()\\-_=+\\\\|\\[\\];:'\\\",<.>/?`~]").IsMatch(password) &&
-               new Regex("[0-9]").IsMatch(password);
+               LowercaseRegex.IsMatch(password) &&
+               UppercaseRegex.IsMatch(password) &&
+               SymbolRegex.IsMatch(password) &&
+               NumberRegex.IsMatch(password);
     }
 
     public static string RandomString(int length)
     {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder str = new StringBuilder();
-        Random rand = new Random();
+        StringBuilder str = new(length);
         for (int i = 0; i < length; i++)
         {
-            str.Append(chars[rand.Next(chars.Length)]);
+            str.Append(RandomChars[RandomNumberGenerator.GetInt32(RandomChars.Length)]);
         }
         return str.ToString();
     }
