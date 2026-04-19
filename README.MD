@@ -2,7 +2,7 @@
 Original is https://git.computernewb.com/collabvm/CollabVMAuthServer
 This is the authentication server for CollabVM. It is used alongside CollabVM server to add support for accounts.
 ## Prerequisites
-- .NET Core 8.0 or later (sudo pacman -S dotnet-sdk-8.0)
+- .NET Core 8.0 or later (sudo pacman -S dotnet-runtime-8.0 aspnet-runtime-8.0)
 - A MariaDB or MySQL server
 - An SMTP server if you want email verification and password reset
 - An hCaptcha account if you want to use hCaptcha to prevent bots
@@ -16,6 +16,7 @@ This is the authentication server for CollabVM. It is used alongside CollabVM se
 ```
 CREATE DATABASE AuthDatabase;
 ```
+and also give permissions if you have own user for database (not root).
 ## Run Database Migrations
 You must do this the first time you run the server, and every time the database schema is updated (you will receive an error otherwise)
 ```
