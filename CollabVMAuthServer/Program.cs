@@ -145,7 +145,7 @@ public class Program
             options.DbContextOptions = dbOptions;
         });
 
-        builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthenticationMiddlewareResultHandler>();
+        builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthorizationMiddlewareResultHandler>();
 
         var authorization = builder.Services.AddAuthorizationBuilder();
         authorization.AddPolicy("User", policy =>
