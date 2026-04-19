@@ -67,127 +67,121 @@ public class Program
         return 0;
     }
 
-    public static async Task<int> RunAuthServer(AuthServerContext context)
+public static async Task<int> RunAuthServer(AuthServerContext context)
+{
+    var ver = Assembly.GetExecutingAssembly().GetName().Version;
+    _logger.LogInformation("CollabVM Authentication Server v{major}.{minor}.{revision} starting up",
+        ver!.Major, ver.Minor, ver.Revision);
+
+    Config = context.Config;
+
+    var dbOptionsBuilder = context.Config.MySQL.Configure();
+    var dbOptions = dbOptionsBuilder.Options;
+    var db = new CollabVMAuthDbContext(dbOptions);
+
+    if ((await db.Database.GetPendingMigrationsAsync()).Any())
     {
-        var ver = Assembly.GetExecutingAssembly().GetName().Version;
-        _logger.LogInformation("CollabVM Authentication Server v{major}.{minor}.{revision} starting up",
-            ver!.Major, ver.Minor, ver.Revision);
-
-        Config = context.Config;
-
-        // Configure DB options once (assuming MySQLConfig.Configure returns DbContextOptionsBuilder)
-        var dbOptionsBuilder = context.Config.MySQL.Configure();
-        var dbOptions = dbOptionsBuilder.Options;
-        var db = new CollabVMAuthDbContext(dbOptions);
-
-        if ((await db.Database.GetPendingMigrationsAsync()).Any())
-        {
-            _logger.LogCritical("Database schema out of date. Please run migrations.");
-            return 1;
-        }
-
-        var uc = await db.Users.CountAsync();
-        _logger.LogInformation("{uc} users in database", uc);
-        if (uc == 0)
-            _logger.LogWarning("No users in database, first user will be promoted to admin");
-
-        var cron = new Cron(dbOptions);
-        await cron.Start();
-
-        if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
-        {
-            _logger.LogCritical("Email verification is required but SMTP is disabled");
-            return 1;
-        }
-        Mailer = Config.SMTP.Enabled ? new Mailer(Config.SMTP) : null;
-
-        if (Config.hCaptcha.Enabled)
-        {
-            hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret!, Config.hCaptcha.SiteKey!);
-            _logger.LogInformation("hCaptcha enabled");
-        }
-        else
-        {
-            _logger.LogInformation("hCaptcha disabled");
-        }
-
-        BannedPasswords = await File.ReadAllLinesAsync("rockyou.txt");
-
-        var builder = WebApplication.CreateBuilder();
-        Utilities.ConfigureLogging(builder.Logging);
-
-        builder.Services.AddControllers().AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-        });
-
-        // Correct pattern: Configure returns DbContextOptionsBuilder, we don‘t call .Options here
-        builder.Services.AddDbContext<CollabVMAuthDbContext>((services, options) =>
-            context.Config.MySQL.Configure(options));
-
-        // Configure forwarded headers
-        builder.Services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            foreach (string proxy in context.Config.HTTP.TrustedProxies!)
-            {
-                options.KnownProxies.Add(IPAddress.Parse(proxy));
-            }
-        });
-
-        builder.Services.AddAuthentication(options =>
-        {
-            options.DefaultScheme = "CollabVM";
-            options.RequireAuthenticatedSignIn = false;
-        })
-        .AddScheme<CollabVMAuthenticationSchemeOptions, CollabVMAuthenticationHandler>("CollabVM", options =>
-        {
-            options.DbContextOptions = dbOptions;
-        });
-
-        builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthorizationMiddlewareResultHandler>();
-
-        var authorization = builder.Services.AddAuthorizationBuilder();
-        authorization.AddPolicy("User", policy =>
-        {
-            policy.RequireAuthenticatedUser();
-            policy.RequireClaim("type", "user");
-        });
-        authorization.AddPolicy("Staff", policy =>
-        {
-            policy.RequireAuthenticatedUser();
-            policy.RequireClaim("rank", "2", "3");
-        });
-        authorization.AddPolicy("Developer", policy =>
-        {
-            policy.RequireAuthenticatedUser();
-            policy.RequireClaim("developer", "1");
-        });
-
-
-        builder = new WebHostBuilder()
-            .UseKestrel()
-            .UseUrls($"http://{context.Config.HTTP.Host ?? "127.0.0.1"}:{context.Config.HTTP.Port}")
-            .UseStartup<Startup>()
-            .Build();
-        await builder.RunAsync();
-
-        builder.Services.AddCors();
-        var app = builder.Build();
-
-        if (context.Config.HTTP.UseXForwardedFor)
-            app.UseForwardedHeaders();
-
-        app.UseRouting();
-        app.UseCors(cors => cors
-            .AllowAnyOrigin()
-            .AllowAnyMethod()
-            .AllowAnyHeader());
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.MapControllers();
-
-        await app.RunAsync();
-        return 0;
+        _logger.LogCritical("Database schema out of date. Please run migrations.");
+        return 1;
     }
+
+    var uc = await db.Users.CountAsync();
+    _logger.LogInformation("{uc} users in database", uc);
+    if (uc == 0)
+        _logger.LogWarning("No users in database, first user will be promoted to admin");
+
+    var cron = new Cron(dbOptions);
+    await cron.Start();
+
+    if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
+    {
+        _logger.LogCritical("Email verification is required but SMTP is disabled");
+        return 1;
+    }
+    Mailer = Config.SMTP.Enabled ? new Mailer(Config.SMTP) : null;
+
+    if (Config.hCaptcha.Enabled)
+    {
+        hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret!, Config.hCaptcha.SiteKey!);
+        _logger.LogInformation("hCaptcha enabled");
+    }
+    else
+    {
+        _logger.LogInformation("hCaptcha disabled");
+    }
+
+    BannedPasswords = await File.ReadAllLinesAsync("rockyou.txt");
+
+    var builder = WebApplication.CreateBuilder();
+    Utilities.ConfigureLogging(builder.Logging);
+
+    builder.Services.AddControllers().AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    });
+
+    builder.Services.AddDbContext<CollabVMAuthDbContext>((services, options) =>
+        context.Config.MySQL.Configure(options));
+
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        foreach (string proxy in context.Config.HTTP.TrustedProxies!)
+        {
+            options.KnownProxies.Add(IPAddress.Parse(proxy));
+        }
+    });
+
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = "CollabVM";
+        options.RequireAuthenticatedSignIn = false;
+    })
+    .AddScheme<CollabVMAuthenticationSchemeOptions, CollabVMAuthenticationHandler>("CollabVM", options =>
+    {
+        options.DbContextOptions = dbOptions;
+    });
+
+    builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthorizationMiddlewareResultHandler>();
+
+    var authorization = builder.Services.AddAuthorizationBuilder();
+    authorization.AddPolicy("User", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim("type", "user");
+    });
+    authorization.AddPolicy("Staff", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim("rank", "2", "3");
+    });
+    authorization.AddPolicy("Developer", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim("developer", "1");
+    });
+
+    builder.Services.AddCors();
+
+    var app = builder.Build();
+
+    app.Urls.Clear();
+    app.Urls.Add($"http://{Config.HTTP.Host ?? "127.0.0.1"}:{Config.HTTP.Port}");
+
+    if (context.Config.HTTP.UseXForwardedFor)
+        app.UseForwardedHeaders();
+
+    app.UseRouting();
+    app.UseCors(cors => cors
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.MapControllers();
+
+    await app.RunAsync();
+
+    return 0;
+   }
 }
