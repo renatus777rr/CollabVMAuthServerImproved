@@ -126,7 +126,7 @@ public class Program
                     System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
             });
 
-        builder.Services.AddDbContext<CollabVMAuthDbContext>(Config.MySQL.Configure);
+        builder.Services.AddDbContext<CollabVMAuthDbContext>((serviceProvider, options) => Config.MySQL.Configure(options).Options);
 
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
@@ -160,7 +160,7 @@ public class Program
             .RequireAuthenticatedUser()
             .RequireClaim("developer", "1"));
 
-        builder.WebHost.UseKestrel(serverOptions =>
+        builder.Host.UseKestrel(serverOptions =>
         {
             serverOptions.Listen(IPAddress.Parse(Config.HTTP.Host), Config.HTTP.Port);
         });
