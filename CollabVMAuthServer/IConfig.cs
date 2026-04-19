@@ -1,107 +1,101 @@
-// IConfig.cs
 using System.IO;
 using Computernewb.CollabVMAuthServer.Database;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using Tomlet;
+using Tomlet.Attributes;
 
 namespace Computernewb.CollabVMAuthServer;
 
-public interface IConfig
+public class IConfig
 {
-    RegistrationConfig Registration { get; }
-    AccountConfig Accounts { get; }
-    CollabVMConfig CollabVM { get; }
-    HTTPConfig HTTP { get; }
-    MySQLConfig MySQL { get; }
-    SMTPConfig SMTP { get; }
-    hCaptchaConfig hCaptcha { get; }
-}
+    public RegistrationConfig? Registration { get; set; }
+    public AccountConfig? Accounts { get; set; }
+    public CollabVMConfig? CollabVM { get; set; }
+    public HTTPConfig? HTTP { get; set; }
+    public MySQLConfig? MySQL { get; set; }
+    public SMTPConfig? SMTP { get; set; }
+    public hCaptchaConfig? hCaptcha { get; set; }
 
-public class Config : IConfig
-{
-    public RegistrationConfig Registration { get; set; } = new();
-    public AccountConfig Accounts { get; set; } = new();
-    public CollabVMConfig CollabVM { get; set; } = new();
-    public HTTPConfig HTTP { get; set; } = new();
-    public MySQLConfig MySQL { get; set; } = new();
-    public SMTPConfig SMTP { get; set; } = new();
-    public hCaptchaConfig hCaptcha { get; set; } = new();
-
-    public static Config Load(string configPath)
-    {
+    /// <summary>Load config instance from the specified toml file</summary>
+    public static IConfig Load(string configPath) {
+        // Load from disk
         var configRaw = File.ReadAllText(configPath);
-        return TomletMain.To<Config>(configRaw)!;
+        // Parse toml
+        var config = TomletMain.To<IConfig>(configRaw);
+        return config;
     }
+    
 }
 
 public class RegistrationConfig
 {
     public bool EmailVerificationRequired { get; set; }
     public bool EmailDomainWhitelist { get; set; }
-    public string[] AllowedEmailDomains { get; set; } = Array.Empty<string>();
+    public string[]? AllowedEmailDomains { get; set; }
 }
 
 public class AccountConfig
 {
-    public int MaxSessions { get; set; } = 5;
-    public int SessionExpiryDays { get; set; } = 30;
+    public int MaxSessions { get; set; }
+    public int SessionExpiryDays { get; set; }
 }
 
 public class CollabVMConfig
 {
-    public string SecretKey { get; set; } = string.Empty;
+    // We might want to move this to the database, but for now it's fine here.
+    public string? SecretKey { get; set; }
 }
-
 public class HTTPConfig
 {
-    public string Host { get; set; } = "0.0.0.0";
-    public int Port { get; set; } = 5000;
+    public string? Host { get; set; }
+    public int Port { get; set; }
     public bool UseXForwardedFor { get; set; }
-    public string[] TrustedProxies { get; set; } = Array.Empty<string>();
+    public string[]? TrustedProxies { get; set; }
 }
-
 public class MySQLConfig
 {
-    public string Host { get; set; } = string.Empty;
-    public string Username { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public string Database { get; set; } = string.Empty;
+    [TomlNonSerialized]
+    public string ConnectionString => new MySqlConnectionStringBuilder {
+            Server = Host,
+            UserID = Username,
+            Password = Password,
+            Database = Database
+        }.ConnectionString;
+    public string? Host { get; set; }
+    public string? Username { get; set; }
+    public string? Password { get; set; }
+    public string? Database { get; set; }
 
-    private string ConnectionString => new MySqlConnectionStringBuilder
-    {
-        Server = Host,
-        UserID = Username,
-        Password = Password,
-        Database = Database
-    }.ConnectionString;
-
-    public DbContextOptionsBuilder<CollabVMAuthDbContext> Configure(DbContextOptionsBuilder<CollabVMAuthDbContext>? builder = null)
-    {
+    public DbContextOptionsBuilder<CollabVMAuthDbContext> Configure(DbContextOptionsBuilder<CollabVMAuthDbContext>? builder = null) {
         return (builder ?? new DbContextOptionsBuilder<CollabVMAuthDbContext>())
-            .UseMySQL(ConnectionString, ServerVersion.AutoDetect(ConnectionString));
+            .UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString));
+    }
+
+    public DbContextOptionsBuilder Configure(DbContextOptionsBuilder builder) {
+        return (builder ?? new DbContextOptionsBuilder<CollabVMAuthDbContext>())
+            .UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString));
     }
 }
 
 public class SMTPConfig
 {
     public bool Enabled { get; set; }
-    public string Host { get; set; } = string.Empty;
-    public int Port { get; set; } = 587;
-    public string Username { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public string FromName { get; set; } = "CollabVM Auth";
-    public string FromEmail { get; set; } = string.Empty;
-    public string VerificationCodeSubject { get; set; } = "Verify your email";
-    public string VerificationCodeBody { get; set; } = string.Empty;
-    public string ResetPasswordSubject { get; set; } = "Reset your password";
-    public string ResetPasswordBody { get; set; } = string.Empty;
+    public string? Host { get; set; }
+    public int? Port { get; set; }
+    public string? Username { get; set; }
+    public string? Password { get; set; }
+    public string? FromName { get; set; }
+    public string? FromEmail { get; set; }
+    public string? VerificationCodeSubject { get; set; }
+    public string? VerificationCodeBody { get; set; }
+    public string? ResetPasswordSubject { get; set; }
+    public string? ResetPasswordBody { get; set; }
 }
 
 public class hCaptchaConfig
 {
     public bool Enabled { get; set; }
-    public string Secret { get; set; } = string.Empty;
-    public string SiteKey { get; set; } = string.Empty;
+    public string? Secret { get; set; }
+    public string? SiteKey { get; set; }
 }
