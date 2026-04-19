@@ -1,6 +1,6 @@
-# CollabVM Authentication Server
+# CollabVM Authentication Server Improved
+Original is https://git.computernewb.com/collabvm/CollabVMAuthServer
 This is the authentication server for CollabVM. It is used alongside CollabVM server to add support for accounts.
-
 ## Prerequisites
 - .NET Core 8.0 or later
 - A MariaDB or MySQL server
