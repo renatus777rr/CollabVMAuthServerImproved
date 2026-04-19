@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
 using System.Security.Claims;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Computernewb.CollabVMAuthServer.Database;
 using Computernewb.CollabVMAuthServer.Database.Schema;
@@ -540,7 +541,7 @@ public class AuthenticationApiController : ControllerBase
         // Verify the account
         user.EmailVerified = true;
         // Create a session
-        var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity([new("id", user.Id.ToString())]));
+        var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim> { new("id", user.Id.ToString()) }, "CollabVM"));
         await HttpContext.SignInAsync(userPrincipal);
         var token = userPrincipal.FindFirstValue("token")
             ?? throw new InvalidOperationException("Sign in handler did not add token");
@@ -720,7 +721,7 @@ public class AuthenticationApiController : ControllerBase
         {
             user.EmailVerified = true;
             await _dbContext.SaveChangesAsync();
-            var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity([new("id", user.Id.ToString())]));
+            var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim> { new("id", user.Id.ToString()) }, "CollabVM"));
             await HttpContext.SignInAsync(userPrincipal);
             token = userPrincipal.FindFirstValue("token")
                 ?? throw new InvalidOperationException("Sign in handler did not add token");
