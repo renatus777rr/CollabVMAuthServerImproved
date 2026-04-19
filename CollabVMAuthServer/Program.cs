@@ -1,3 +1,4 @@
+// Program.cs
 using System;
 using System.CommandLine;
 using System.IO;
@@ -10,13 +11,11 @@ using Computernewb.CollabVMAuthServer.Database;
 using Computernewb.CollabVMAuthServer.HTTP;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Computernewb.CollabVMAuthServer;
 
@@ -56,7 +55,7 @@ public class Program
     {
         _logger.LogInformation("Running database migrations");
 
-        var dbOptions = context.Config.MySQL!.Configure().Options;
+        var dbOptions = context.Config.MySQL.Configure().Options;
         await using var db = new CollabVMAuthDbContext(dbOptions);
 
         await LegacyDbMigrator.CheckAndMigrate(db);
@@ -78,7 +77,8 @@ public class Program
 
         Config = context.Config;
 
-        var dbOptions = Config.MySQL!.Configure().Options;
+        var dbOptionsBuilder = Config.MySQL.Configure();
+        var dbOptions = dbOptionsBuilder.Options;
         await using var db = new CollabVMAuthDbContext(dbOptions);
 
         var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
@@ -96,7 +96,7 @@ public class Program
         var cron = new Cron(dbOptions);
         await cron.Start();
 
-        if (!Config.SMTP!.Enabled && Config.Registration!.EmailVerificationRequired)
+        if (!Config.SMTP.Enabled && Config.Registration.EmailVerificationRequired)
         {
             _logger.LogCritical("Email verification required but SMTP disabled");
             return 1;
@@ -104,9 +104,9 @@ public class Program
 
         Mailer = Config.SMTP.Enabled ? new Mailer(Config.SMTP) : null;
 
-        if (Config.hCaptcha!.Enabled)
+        if (Config.hCaptcha.Enabled)
         {
-            hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret!, Config.hCaptcha.SiteKey!);
+            hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret, Config.hCaptcha.SiteKey);
             _logger.LogInformation("hCaptcha enabled");
         }
         else
@@ -117,20 +117,21 @@ public class Program
         BannedPasswords = await File.ReadAllLinesAsync("rockyou.txt");
 
         var builder = WebApplication.CreateBuilder(args);
-        builder.WebHost.ConfigureLogging(Utilities.ConfigureLogging);
+        Utilities.ConfigureLogging(builder.Logging);
 
         builder.Services.AddControllers()
             .AddJsonOptions(options =>
             {
-                options.JsonSerializerOptions.DefaultIgnoreCondition = JsonSerializationContext.Default.DefaultIgnoreCondition;
+                options.JsonSerializerOptions.DefaultIgnoreCondition = 
+                    System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
             });
 
-        builder.Services.AddDbContext<CollabVMAuthDbContext>(serviceProvider => Config.MySQL!.Configure(serviceProvider));
+        builder.Services.AddDbContext<CollabVMAuthDbContext>(Config.MySQL.Configure);
 
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            foreach (var proxy in Config.HTTP!.TrustedProxies!)
+            foreach (var proxy in Config.HTTP.TrustedProxies)
             {
                 options.KnownProxies.Add(IPAddress.Parse(proxy));
             }
@@ -161,7 +162,7 @@ public class Program
 
         builder.WebHost.UseKestrel(serverOptions =>
         {
-            serverOptions.Listen(IPAddress.Parse(Config.HTTP!.Host!), Config.HTTP.Port);
+            serverOptions.Listen(IPAddress.Parse(Config.HTTP.Host), Config.HTTP.Port);
         });
 
         builder.Services.AddCors();
