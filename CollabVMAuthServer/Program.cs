@@ -116,7 +116,7 @@ public class Program
 
         BannedPasswords = await File.ReadAllLinesAsync("rockyou.txt");
 
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder();
         Utilities.ConfigureLogging(builder.Logging);
 
         builder.Services.AddControllers()
