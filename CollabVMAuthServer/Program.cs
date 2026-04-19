@@ -14,39 +14,35 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Computernewb.CollabVMAuthServer;
 
 public class Program
 {
-    #pragma warning disable CS8618
-    public static IConfig Config { get; private set; }
+    public static IConfig Config { get; private set; } = null!;
     public static hCaptchaClient? hCaptcha { get; private set; }
     public static Mailer? Mailer { get; private set; }
-    public static string[] BannedPasswords { get; set; }
-    #pragma warning restore CS8618
-    public static readonly Random Random = new Random();
-    private static readonly ILogger _logger
-        = LoggerFactory.Create(Utilities.ConfigureLogging).CreateLogger<Program>();
+    public static string[] BannedPasswords { get; private set; } = null!;
+    public static readonly Random Random = new();
 
-    public static async Task<int> Main(string[] args) {
-        if (EF.IsDesignTime) {
-            // We have a design time factory EF uses to handle this, just exit
+    private static readonly ILogger<Program> _logger = LoggerFactory.Create(Utilities.ConfigureLogging).CreateLogger<Program>();
+
+    public static async Task<int> Main(string[] args)
+    {
+        if (EF.IsDesignTime)
             return 0;
-        }
 
-        // Root command (run auth server)
         var rootCommand = new RootCommand("CollabVM Authentication Server");
 
         var configPathOption = new Option<string>(
-            name: "--config-path",
-            description: "Configuration file to use",
-            getDefaultValue: () => "./config.toml"
-        );
+            "--config-path",
+            () => "./config.toml",
+            "Configuration file to use");
         rootCommand.Add(configPathOption);
 
-        // Migrate DB
         var migrateDbCommand = new Command("migrate-db", "Runs all pending database migrations");
         rootCommand.Add(migrateDbCommand);
 
@@ -56,48 +52,58 @@ public class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    public static async Task<int> MigrateDatabase(AuthServerContext context) {
-        
+    private static async Task<int> MigrateDatabase(AuthServerContext context)
+    {
         _logger.LogInformation("Running database migrations");
-        // Initialize database
-        var db = new CollabVMAuthDbContext(context.Config.MySQL!.Configure().Options);
-        // Detect and migrate legacy schema
+
+        var dbOptions = context.Config.MySQL!.Configure().Options;
+        await using var db = new CollabVMAuthDbContext(dbOptions);
+
         await LegacyDbMigrator.CheckAndMigrate(db);
-        // Run migrations
-        _logger.LogInformation("Applying {cnt} migrations now...", (await db.Database.GetPendingMigrationsAsync()).Count());
+
+        var pendingCount = await db.Database.GetPendingMigrationsAsync();
+        _logger.LogInformation("Applying {Count} migrations", pendingCount.Count());
+
         await db.Database.MigrateAsync();
-        _logger.LogInformation("Finished migrations.");
+
+        _logger.LogInformation("Finished migrations");
         return 0;
     }
 
-    public static async Task<int> RunAuthServer(AuthServerContext context)
+    private static async Task<int> RunAuthServer(AuthServerContext context)
     {
-        var ver = Assembly.GetExecutingAssembly().GetName().Version;
-        _logger.LogInformation("CollabVM Authentication Server v{major}.{minor}.{revision} starting up", ver!.Major, ver.Minor, ver.Revision);
-        // temp
+        var assembly = Assembly.GetExecutingAssembly();
+        var version = assembly.GetName().Version!;
+        _logger.LogInformation("CollabVM Authentication Server v{Version} starting up", version.ToString(3));
+
         Config = context.Config;
-        // Initialize database
-        var db = new CollabVMAuthDbContext(context.Config.MySQL!.Configure().Options);
-        // Make sure database schema is up-to-date, error if not
-        if ((await db.Database.GetPendingMigrationsAsync()).Any()) {
-            _logger.LogCritical("Database schema out of date. Please run migrations.");
+
+        var dbOptions = Config.MySQL!.Configure().Options;
+        await using var db = new CollabVMAuthDbContext(dbOptions);
+
+        var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
+        if (pendingMigrations.Any())
+        {
+            _logger.LogCritical("Database schema out of date. Please run 'migrate-db'.");
             return 1;
         }
-        // Count users in database
-        var uc = await db.Users.CountAsync();
-        _logger.LogInformation("{uc} users in database", uc);
-        if (uc == 0) _logger.LogWarning("No users in database, first user will be promoted to admin");
-        // Init cron
-        var cron = new Cron(context.Config.MySQL.Configure().Options);
+
+        var userCount = await db.Users.CountAsync();
+        _logger.LogInformation("Found {UserCount} users in database", userCount);
+        if (userCount == 0)
+            _logger.LogWarning("No users found. First user will be promoted to admin");
+
+        var cron = new Cron(dbOptions);
         await cron.Start();
-        // Create mailer
+
         if (!Config.SMTP!.Enabled && Config.Registration!.EmailVerificationRequired)
         {
-            _logger.LogCritical("Email verification is required but SMTP is disabled");
+            _logger.LogCritical("Email verification required but SMTP disabled");
             return 1;
         }
+
         Mailer = Config.SMTP.Enabled ? new Mailer(Config.SMTP) : null;
-        // Create hCaptcha client
+
         if (Config.hCaptcha!.Enabled)
         {
             hCaptcha = new hCaptchaClient(Config.hCaptcha.Secret!, Config.hCaptcha.SiteKey!);
@@ -107,69 +113,83 @@ public class Program
         {
             _logger.LogInformation("hCaptcha disabled");
         }
-        // load password list
+
         BannedPasswords = await File.ReadAllLinesAsync("rockyou.txt");
-        // Configure web server
-        var builder = WebApplication.CreateBuilder();
-        Utilities.ConfigureLogging(builder.Logging);
 
-        // Configure json serialization
-        builder.Services.AddControllers().AddJsonOptions((options) => {
-            options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-        });
+        var builder = WebApplication.CreateBuilder(args);
+        builder.WebHost.ConfigureLogging(Utilities.ConfigureLogging);
 
-        // Configure database context
-        builder.Services.AddDbContext<CollabVMAuthDbContext>((builder) => context.Config.MySQL.Configure(builder));
+        builder.Services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.DefaultIgnoreCondition = JsonSerializationContext.Default.DefaultIgnoreCondition;
+            });
 
-        // Configure forwarded headers
-        builder.Services.Configure<ForwardedHeadersOptions>((options) => {
+        builder.Services.AddDbContext<CollabVMAuthDbContext>(serviceProvider => Config.MySQL!.Configure(serviceProvider));
+
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            foreach (var proxy in context.Config.HTTP!.TrustedProxies!) {
+            foreach (var proxy in Config.HTTP!.TrustedProxies!)
+            {
                 options.KnownProxies.Add(IPAddress.Parse(proxy));
             }
         });
 
-        // Configure authentication
-        builder.Services.AddAuthentication((options) => {
+        builder.Services.AddAuthentication(options =>
+        {
             options.DefaultScheme = "CollabVM";
             options.RequireAuthenticatedSignIn = false;
         })
-        .AddScheme<CollabVMAuthenticationSchemeOptions, CollabVMAuthenticationHandler>("CollabVM", (options) => {
-            options.DbContextOptions = context.Config.MySQL.Configure().Options;
-        });
-
-        // Configure authorization policies
-        builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthorizationMiddlewareResultHandler>();
-        var authorization = builder.Services.AddAuthorizationBuilder();
-        authorization.AddPolicy("User", (policy) => {
-            policy.RequireAuthenticatedUser();
-            policy.RequireClaim("type", "user");
-        });
-        authorization.AddPolicy("Staff", (policy) => {
-            policy.RequireAuthenticatedUser();
-            policy.RequireClaim("rank", "2", "3");
-        });
-        authorization.AddPolicy("Developer", (policy) => {
-            policy.RequireAuthenticatedUser();
-            policy.RequireClaim("developer", "1");
-        });
-
-        builder.WebHost.UseKestrel(k =>
+        .AddScheme<CollabVMAuthenticationSchemeOptions, CollabVMAuthenticationHandler>("CollabVM", options =>
         {
-            k.Listen(IPAddress.Parse(Config.HTTP!.Host!), Config.HTTP.Port);
+            options.DbContextOptions = dbOptions;
         });
+
+        builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CollabVMAuthorizationMiddlewareResultHandler>();
+
+        var authorizationBuilder = builder.Services.AddAuthorizationBuilder();
+        authorizationBuilder.AddPolicy("User", policy => policy
+            .RequireAuthenticatedUser()
+            .RequireClaim("type", "user"));
+        authorizationBuilder.AddPolicy("Staff", policy => policy
+            .RequireAuthenticatedUser()
+            .RequireClaim("rank", "2", "3"));
+        authorizationBuilder.AddPolicy("Developer", policy => policy
+            .RequireAuthenticatedUser()
+            .RequireClaim("developer", "1"));
+
+        builder.WebHost.UseKestrel(serverOptions =>
+        {
+            serverOptions.Listen(IPAddress.Parse(Config.HTTP!.Host!), Config.HTTP.Port);
+        });
+
         builder.Services.AddCors();
+
         var app = builder.Build();
-        if (context.Config.HTTP!.UseXForwardedFor) {
+
+        if (Config.HTTP.UseXForwardedFor)
+        {
             app.UseForwardedHeaders();
         }
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseDeveloperExceptionPage();
+        }
+
         app.UseRouting();
-        // TODO: Make this more strict
-        app.UseCors(cors => cors.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
+        app.UseCors(cors => cors
+            .AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader());
+
         app.UseAuthentication();
         app.UseAuthorization();
-        // Register routes
+
         app.MapControllers();
+
         await app.RunAsync();
         return 0;
     }
