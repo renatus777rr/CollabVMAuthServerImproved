@@ -1,4 +1,5 @@
 # CollabVM Authentication Server Improved
+## THE AUTH SERVER IS FULLY FIXED. DO PULL UP REQUESTS I WILL ACCEPT THEM.
 Original is https://git.computernewb.com/collabvm/CollabVMAuthServer
 This is the authentication server for CollabVM. It is used alongside CollabVM server to add support for accounts.
 ## Prerequisites
